@@ -75,13 +75,13 @@ end
 
 function items:find(item)
     for bag_name,bag_id in pairs(settings.bag_priority) do
-        real_bag_id = s_to_bag(bag_name)
-        org_debug("find", "Searching "..bag_name.." for "..res.items[item.id].english..".")
+      real_bag_id = s_to_bag(bag_name)
+      org_debug("find", "Searching "..bag_name.." for "..res.items[item.id].english..".")
         if self[real_bag_id] and self[real_bag_id]:contains(item) then
-            org_debug("find", "Found "..res.items[item.id].english.." in "..bag_name..".")
+          org_debug("find", "Found "..res.items[item.id].english.." in "..bag_name..".")
             return real_bag_id, self[real_bag_id]:contains(item)
         else
-            org_debug("find", "Didn't find "..res.items[item.id].english.." in "..bag_name..".")
+          org_debug("find", "Didn't find "..res.items[item.id].english.." in "..bag_name..".")
         end
     end
     org_debug("find", "Didn't find "..res.items[item.id].english.." in any bags.")
@@ -91,31 +91,48 @@ end
 function items:route(start_bag,start_ind,end_bag,count)
     count = count or self[start_bag][start_ind].count
     local success = true
+    local full_bag
+    local initial_bag = start_bag
     local initial_ind = start_ind
     local inventory_max = windower.ffxi.get_bag_info(0).max
+    -- If not in inventory and inventory not full, move it to inventory
     if start_bag ~= 0 and self[0]._info.n < inventory_max then
+      -- Also get the new slot number of item after moving to inventory
         start_ind = self[start_bag][start_ind]:move(0,0x52,count)
     elseif start_bag ~= 0 and self[0]._info.n >= inventory_max then
         success = false
+        full_bag = 0
         org_warning('Cannot move more than '..inventory_max..' items into inventory')
+        return success, full_bag
     end
 
+    -- At this point, item is guaranteed to be in inventory
+
+    -- Get destination bag info
     local destination_enabled = windower.ffxi.get_bag_info(end_bag).enabled
     local destination_max = windower.ffxi.get_bag_info(end_bag).max
 
+    -- If you don't have access to the destination bag, operation fails
     if not destination_enabled then
         success = false
         org_warning('Cannot move to '..tostring(end_bag)..' because it is disabled')
+    -- If destination bag is not inventory, ensure there is room in bag then transfer item
     elseif start_ind and end_bag ~= 0 and self[end_bag]._info.n < destination_max then
-        self[0][start_ind]:transfer(end_bag,count)
+        start_ind = self[0][start_ind]:move(end_bag,0x52,count)
+        if not start_ind then
+          success = false
+        else
+          success = true
+        end
     elseif not start_ind then
         success = false
         org_warning('Initial movement of the route failed. ('..tostring(start_bag)..' '..tostring(initial_ind)..' '..tostring(start_ind)..' '..tostring(end_bag)..')')
     elseif self[end_bag]._info.n >= destination_max then
+        full_bag = end_bag
         success = false
         org_warning('Cannot move more than '..destination_max..' items into that inventory ('..end_bag..')')
     end
-    return success
+    return success, full_bag
 end
 
 function items:it()
@@ -353,7 +370,7 @@ function item_tab:put_away(usable_bags)
     local current_items = self._parent._parent
     usable_bags = usable_bags or _static.usable_bags
     local bag_free
-    for _,v in ipairs(usable_bags) do
+    for _,v in pairs(usable_bags) do
         local bag_max = windower.ffxi.get_bag_info(v).max
         if current_items[v]._info.n < bag_max and wardrobecheck(v,self.id) then
             bag_free = v
@@ -398,6 +415,31 @@ end
 
 function item_tab:available_amount()
     return ( rawget(self,'count') - (rawget(self,'a_count') or 0) )
+end
+
+-- Returns boolean after comparing the augment lists on both items.
+-- Assumes both items have augment table keyed as "augments"
+function item_tab:compare_augments(other_item)
+  if #self.augments ~= #other_item.augments then
+    return false
+  end
+  if #self.augments == 1 then
+    return self.augments == other_item.augments
+  end
+
+  local matches = {}
+  for i,self_aug in pairs(self.augments) do
+    for j,other_aug in pairs(other_item.augments) do
+      -- Only counts as a match if the values are the same and hasn't matched before
+      if self_aug == other_aug and not matches[j] then
+        -- Found a matching augment, note the index in matches table
+        matches[j]=true
+      end
+    end
+  end
+
+  -- If number of matches equals number of augments, all augments match
+  return #matches == #self.augments
 end
 
 return Items

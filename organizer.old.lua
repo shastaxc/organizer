@@ -35,7 +35,6 @@ require 'lists'
 require 'functions'
 config = require 'config'
 slips = require 'slips'
-inspect = require('inspect')
 
 _addon.name = 'Organizer'
 _addon.author = 'Byrth, maintainer: Rooks'
@@ -303,7 +302,7 @@ windower.register_event('addon command',function(...)
     org_debug("command", "Organizer complete")
 
 end)
--- Attempt to move each goal item to it's target bag. Count successes and failures.
+
 function get(goal_items,current_items)
     org_verbose('Getting!')
     if goal_items then
@@ -311,8 +310,8 @@ function get(goal_items,current_items)
         failed = 0
         current_items = current_items or Items.new()
         goal_items, current_items = clean_goal(goal_items,current_items)
-        for bag_id,bag in pairs(goal_items) do
-            for ind,item in bag:it() do
+        for bag_id,inv in goal_items:it() do
+            for ind,item in inv:it() do
                 if not item:annihilated() then
                     local start_bag, start_ind = current_items:find(item)
                     -- Table contains a list of {bag, pos, count}
@@ -334,169 +333,6 @@ function get(goal_items,current_items)
         org_verbose("Got "..count.." item(s), and failed getting "..failed.." item(s)")
     end
     return goal_items, current_items
-end
-
--- Attempt to move a goal item to its target bag. If target bag is full, attempt to move a
--- non-goal item out to make room. Return success or failure.
-function move_goal_item(goal_items, current_items)
-  org_verbose('Attempting to move goal item(s).')
-  local is_success
-  local processed_count = 0
-  if goal_items then
-    current_items = current_items or Items.new()
-    for bag_id,bag in pairs(goal_items) do
-      for ind,item in bag:it() do
-        processed_count = processed_count+1
-        local full_bag
-        -- Only attempt sort if item is not already in right bag and not already failed move
-        if not item:annihilated() or not item.hasFailed then
-          local start_bag, start_ind = current_items:find(item)
-          if start_bag then
-            is_success, full_bag = current_items:route(start_bag,start_ind,bag_id)
-            local route_status
-            goal_items, current_items, route_status = handle_route_result(goal_items, current_items, is_success, full_bag)
-            if route_status == 2 then -- Try again
-              is_success, full_bag = current_items:route(start_bag,start_ind,bag_id)
-              goal_items, current_items, route_status = handle_route_result(goal_items, current_items, is_success, full_bag)
-            end
-            if route_status == 0 then -- Routing failed
-              item.hasFailed = true
-              is_success = false
-            elseif route_status == 1 then -- Routing succeeded
-              local potential_ind = current_items[bag_id]:contains(item)
-              if potential_ind then
-                -- Item has been moved to target bag. Annihilate item.
-                item:annihilate(item.count)
-                current_items[bag_id][potential_ind]:annihilate(current_items[bag_id][potential_ind].count)
-              else
-                org_warning('Attempted move but failed for '..res.items[item.id].english)
-                item.hasFailed = true
-              end
-              is_success = true
-              break
-            else -- Unknown failure or potential infinite loop
-              item.hasFailed = true
-              is_success = false
-            end
-          else
-            org_warning(res.items[item.id].english..' not found.')
-            item.hasFailed = true
-            is_success = false
-          end
-        end
-      end
-      if is_success then
-        break
-      end
-    end
-  end
-  local total_goal_items = 0
-  for bag_id,bag in pairs(goal_items) do
-    total_goal_items = total_goal_items + bag._info.n
-  end
-  local did_process_all = processed_count == total_goal_items
-  return goal_items, current_items, did_process_all
-end
-
--- Return a status code. 0 = failure, 1 = success, 2 = try again
-function handle_route_result(goal_items, current_items, route_did_succeed, route_bag_was_full)
-  local status = -1
-  if route_did_succeed then
-    status = 1
-  elseif route_bag_was_full and route_bag_was_full ~= 0 then
-    -- Destination bag was full. Attempt to make room and try again.
-    local is_make_room_success = make_room(goal_items, current_items, route_bag_was_full)
-    if is_make_room_success then
-      status = 2
-    else
-      status = 0
-    end
-  else
-    org_warning('Unable to move item.')
-    status = 0
-  end
-  return goal_items, current_items, status
-end
-
--- Attempts to make 1 free space in the specified bag by moving a non-goal item to
--- inventory as long as there is at least 1 goal item un-annihilated in a dump bag
--- to ensure room will eventually be made for the non-goal item to be moved there later
-function make_room(goal_items, current_items, bag_id)
-  org_verbose('Attempting to make room in bag '..bag_id..'.')
-  local is_make_room_success
-  current_items = current_items or Items.new()
-  local dump_bags = get_dump_bags()
-  -- Find a non-goal item to move out of bag and into dump bag
-  local start_ind
-  for i, cur_item in current_items[bag_id]:it() do
-    local found_in_goal_list
-    for j, goal_item in goal_items[bag_id]:it() do
-      if cur_item.id == goal_item.id then
-        -- Found a goal item
-        found_in_goal_list = true
-        break
-      end
-    end
-    if not found_in_goal_list then
-      start_ind = i
-      break
-    end
-  end
-  -- If only goal-items found in target bag, failure
-  if not start_ind then
-    org_verbose('Failed to make space in bag '..bag_id)
-    is_make_room_success = false
-    return is_make_room_success
-  end
-
-  -- If all dump bags are full, ensure there will eventually be room made (goal item
-  -- yet to be sorted is in there). Check items in each dump bag for an item that is a
-  -- goal item, but whose destination bag is not a dump bag.
-  local num_full_dump_bags = 0
-  local count_dumps = 0
-  for bag_id,bag_priority in pairs(dump_bags) do
-    count_dumps = count_dumps + 1
-    local bag_max = windower.ffxi.get_bag_info(bag_id).max
-    if not current_items[bag_id] or current_items[bag_id]._info.n == bag_max then
-      num_full_dump_bags = num_full_dump_bags + 1
-    end
-  end
-  if num_full_dump_bags == count_dumps then
-    local will_dump_space_be_made
-    for i,bag_id in pairs(dump_bags) do
-      -- Ensure dump bag is available
-      if current_items[bag_id] then
-        -- Check that bag to find a goal item that will be moved out later
-        for j,cur_item in current_items[bag_id]:it() do
-          local goal_bag = goal_items:find(cur_item)
-          if goal_bag and not dump_bags[goal_bag] then
-            will_dump_space_be_made = true
-            break
-          end
-        end
-      end
-    end
-    if not will_dump_space_be_made then
-      is_make_room_success = false
-      return is_make_room_success
-    end
-  end
-  
-  -- Move non-goal item to inventory, which will eventually be moved to dump bag in next tidy() call
-  local bag_max = windower.ffxi.get_bag_info(0).max
-  local new_ind
-  if bag_id ~= 0 and current_items[0]._info.n < bag_max then
-      new_ind = current_items[bag_id][start_ind]:move(0,0x52)
-      simulate_item_delay()
-      if new_ind then
-        is_make_room_success = true
-      end
-  elseif bag_id ~= 0 and current_items[0]._info.n >= bag_max then
-    is_make_room_success = false
-    org_warning('Inventory is at max capacity.')
-  end
-  
-  return is_make_room_success
 end
 
 function freeze(file_name,bag,items)
@@ -530,95 +366,80 @@ function freeze(file_name,bag,items)
     end
 end
 
--- Move non-goal items out of inventory and into other bags
 function tidy(goal_items,current_items,usable_bags)
-  org_debug("command", "Entering tidy()")
-  current_items = current_items or Items.new()
-  usable_bags = usable_bags or get_dump_bags()
-  for index,item in current_items[0]:it() do
-    local is_goal_item
-    for i,bag in pairs(goal_items) do
-      for j,g_item in bag:it() do
-        local has_augs = item.augments ~= nil and g_item.augments ~= nil
-        local augs_match = has_augs and g_item:compare_augments(item)
-        if item.id == g_item.id and (not has_augs or (has_augs and augs_match)) then
-          -- Is a goal item
-          org_verbose('Not tidying goal item: '..res.items[item.id].english..'.')
-          is_goal_item = true
-          break
+    org_debug("command", "Entering tidy()")
+    usable_bags = usable_bags or get_dump_bags()
+    -- Move everything out of items[0] and into other inventories (defined by the passed table)
+    if goal_items and goal_items[0] and goal_items[0]._info.n > 0 then
+        current_items = current_items or Items.new()
+        goal_items, current_items = clean_goal(goal_items,current_items)
+        for index,item in current_items[0]:it() do
+            if not goal_items[0]:contains(item,true) then
+                org_debug("command", "Putting away "..item.log_name)
+                current_items[0][index]:put_away(usable_bags)
+                simulate_item_delay()
+            end
         end
-      end
-      if is_goal_item then
-        break
-      end
     end
-    if not is_goal_item then
-      org_debug("command", "Putting away "..item.log_name)
-      current_items[0][index]:put_away(usable_bags)
-      simulate_item_delay()
-    end
-  end
-  return goal_items, current_items
+    return goal_items, current_items
 end
 
 function organize(goal_items)
     org_message('Starting...')
     local current_items = Items.new()
     local dump_bags = get_dump_bags()
+
+    local inventory_max = windower.ffxi.get_bag_info(0).max
+    if current_items[0].n == inventory_max then
+        tidy(goal_items,current_items,dump_bags)
+    end
+    if current_items[0].n == inventory_max then
+        org_error('Unable to make space, aborting!')
+        return
+    end
     
-    local total_goal_items = 0
-    for bag_id,bag in pairs(goal_items) do
-      for ind,item in bag:it() do
-        total_goal_items = total_goal_items + 1
-      end
+    local remainder = math.huge
+    while remainder do
+        goal_items, current_items = get(goal_items,current_items)
+        
+        goal_items, current_items = clean_goal(goal_items,current_items)
+        goal_items, current_items = tidy(goal_items,current_items,dump_bags)
+        remainder = incompletion_check(goal_items,remainder)
+        if(remainder) then
+            org_verbose("Remainder: "..tostring(remainder)..' Current: '..current_items[0]._info.n,1)
+        else
+            org_verbose("No remainder, so we found everything we were looking for!")
+        end
     end
-
-    local did_process_all = false
-    local loop_limit = total_goal_items
-    while loop_limit > 0 do
-      -- Clear out inventory up until dump bags are full or inv is clean
-      goal_items, current_items = tidy(goal_items,current_items,dump_bags)
-      -- Check off goal items that are already in correct bag
-      goal_items, current_items = clean_goal(goal_items,current_items)
-  
-      -- Iterate through goal items to put them into proper bags; if goal bag is
-      -- full, move a non-goal item out of it first.
-      goal_items, current_items, did_process_all = move_goal_item(goal_items, current_items)
-
-      simulate_item_delay()
-      
-      if did_process_all then break end
-      loop_limit = loop_limit - 1
-    end
-
     goal_items, current_items = tidy(goal_items,current_items,dump_bags)
     
     local count,failures = 0,T{}
-    for bag_id,bag in pairs(goal_items) do
-      for ind,item in bag:it() do
-        if item:annihilated() then
-          count = count + 1
-        else
-          item.bag_id = bag_id
-          failures:append(item)
+    for bag_id,bag in goal_items:it() do
+        for ind,item in bag:it() do
+            if item:annihilated() then
+                count = count + 1
+            else
+                item.bag_id = bag_id
+                failures:append(item)
+            end
         end
-      end
     end
-    org_message('Done! - '..count..' items sorted and '..table.length(failures)..' items failed!')
+    org_message('Done! - '..count..' items matched and '..table.length(failures)..' items missing!')
     if table.length(failures) > 0 then
         for i,v in failures:it() do
-            org_verbose('Item Failed: '..i.name..' '..(i.augments and tostring(T(i.augments)) or ''))
+            org_verbose('Item Missing: '..i.name..' '..(i.augments and tostring(T(i.augments)) or ''))
         end
     end
 end
 
 function clean_goal(goal_items,current_items)
-    for i,bag in pairs(goal_items) do
-        for ind,item in bag:it() do
+    for i,inv in goal_items:it() do
+        for ind,item in inv:it() do
             local potential_ind = current_items[i]:contains(item)
             if potential_ind then
-                -- If it is already in the right spot, annihilate it.
-                item:annihilate(item.count)
+                -- If it is already in the right spot, delete it from the goal items and annihilate it.
+                local count = math.min(goal_items[i][ind].count,current_items[i][potential_ind].count)
+                goal_items[i][ind]:annihilate(goal_items[i][ind].count)
                 current_items[i][potential_ind]:annihilate(current_items[i][potential_ind].count)
             end
         end
@@ -630,7 +451,7 @@ function incompletion_check(goal_items,remainder)
     -- Does not work. On cycle 1, you fill up your inventory without purging unnecessary stuff out.
     -- On cycle 2, your inventory is full. A gentler version of tidy needs to be in the loop somehow.
     local remaining = 0
-    for i,v in pairs(goal_items) do
+    for i,v in goal_items:it() do
         for n,m in v:it() do
             if not m:annihilated() then
                 remaining = remaining + 1
