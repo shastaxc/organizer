@@ -15,7 +15,8 @@ This rework is intended to work with gear only. I recommend configuring your set
 
 If gear for your job ends up in a dump bag when you think it shouldn't, ensure that it is in a `sets` table in your gearswap lua, and make sure it is spelled and formatted properly.
 
-# Organizer (//org)
+#OLD NOTES
+## Organizer (//org)
 
 A multi-purpose inventory management solution. Similar to GearCollector; uses packets.
 
