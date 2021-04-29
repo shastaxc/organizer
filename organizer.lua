@@ -35,11 +35,10 @@ require 'lists'
 require 'functions'
 config = require 'config'
 slips = require 'slips'
-inspect = require('inspect')
 
 _addon.name = 'Organizer'
-_addon.author = 'Byrth, maintainer: Rooks'
-_addon.version = 0.20210302
+_addon.author = 'Byrth, maintainer: Rooks, reworked by: Shasta'
+_addon.version = 2.20210429
 _addon.commands = {'organizer','org'}
 
 _static = {
