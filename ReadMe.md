@@ -87,3 +87,19 @@ organizer_items = {
 }
 ```
 
+Note from Shasta:
+
+After reworking this addon, the old and cumbersome `org freeze` method may no longer work. The primary purpose of this addon is now to allow `//gs org` to work more efficiently. All your bags must be loaded (so wait after zoning) in order to work. Unlike previously, you now only need to have 2 empty spaces in your `inventory` bag for this to work. All other bags may be full as long as you don't have any equipment in your inventory. If you have equipment in your inventory, you'll need that many free spaces in your dump bags for them to be placed.
+
+You will need the corresponding updated `organizer-lib.lua` in the `GearSwap/libs` folder. Move it from the `addons/organizer` folder to the `addons/GearSwap/libs` folder and overwrite the existing file.
+
+If you have special gear that is equipped in your scripts via `equip()` functions but are not part of a `sets.whatever` table, it will not be sorted properly (will be put into a dump bag). To overcome this, simply add it to a dummy set. I use the syntax `sets.org.job[1]`, `sets.org.job[2]`, etc. You'll also need a `sets.org = {}` and `sets.org.job = {}` to avoid getting errors.
+
+This rework is intended to work with gear only. I recommend configuring your settings to retain items:
+```
+<retain>
+    <items>true</items>
+</retain>
+```
+
+If gear for your job ends up in a dump bag when you think it shouldn't, ensure that it is in a `sets` table in your gearswap lua, and make sure it is spelled and formatted properly.
