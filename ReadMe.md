@@ -1,4 +1,4 @@
-#Note from Shasta regarding rework of Organizer
+# Note from Shasta regarding rework of Organizer
 
 After reworking this addon, the old and cumbersome `org freeze` method may no longer work. The primary purpose of this addon is now to allow `//gs org` to work more efficiently. All your bags must be loaded (so wait after zoning) in order to work. Unlike previously, you now only need to have 2 empty spaces in your `inventory` bag for this to work. All other bags may be full as long as you don't have any equipment in your inventory. If you have equipment in your inventory, you'll need that many free spaces in your dump bags for them to be placed.
 
@@ -15,7 +15,8 @@ This rework is intended to work with gear only. I recommend configuring your set
 
 If gear for your job ends up in a dump bag when you think it shouldn't, ensure that it is in a `sets` table in your gearswap lua, and make sure it is spelled and formatted properly.
 
-#OLD NOTES
+# OLD NOTES
+
 ## Organizer (//org)
 
 A multi-purpose inventory management solution. Similar to GearCollector; uses packets.
