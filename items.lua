@@ -128,6 +128,7 @@ function items:route(start_bag,start_ind,end_bag,count)
     -- If destination bag is not inventory, ensure there is room in bag then transfer item
     elseif start_ind and end_bag ~= 0 and self[end_bag]._info.n < destination_max then
         start_ind = self[0][start_ind]:move(end_bag,0x52,count)
+        simulate_item_delay()
         if start_ind then
           success = true
           limbo_ind = nil
