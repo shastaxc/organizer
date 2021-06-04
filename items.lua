@@ -94,16 +94,25 @@ function items:route(start_bag,start_ind,end_bag,count)
     local full_bag
     local initial_bag = start_bag
     local initial_ind = start_ind
+    local limbo_ind
+    local limbo_bag
     local inventory_max = windower.ffxi.get_bag_info(0).max
     -- If not in inventory and inventory not full, move it to inventory
     if start_bag ~= 0 and self[0]._info.n < inventory_max then
       -- Also get the new slot number of item after moving to inventory
-        start_ind = self[start_bag][start_ind]:move(0,0x52,count)
+      limbo_ind = self[start_bag][start_ind]:move(0,0x52,count)
+      start_ind = limbo_ind
+      if limbo_ind then
+        limbo_bag = 0
+      else
+        limbo_bag = nil
+        limbo_ind = nil
+      end
     elseif start_bag ~= 0 and self[0]._info.n >= inventory_max then
         success = false
         full_bag = 0
         org_warning('Cannot move more than '..inventory_max..' items into inventory')
-        return success, full_bag
+        return success, full_bag, limbo_bag, limbo_ind
     end
 
     -- At this point, item is guaranteed to be in inventory
@@ -119,10 +128,12 @@ function items:route(start_bag,start_ind,end_bag,count)
     -- If destination bag is not inventory, ensure there is room in bag then transfer item
     elseif start_ind and end_bag ~= 0 and self[end_bag]._info.n < destination_max then
         start_ind = self[0][start_ind]:move(end_bag,0x52,count)
-        if not start_ind then
-          success = false
-        else
+        if start_ind then
           success = true
+          limbo_ind = nil
+          limbo_bag = nil
+        else
+          success = false
         end
     elseif not start_ind then
         success = false
@@ -132,7 +143,7 @@ function items:route(start_bag,start_ind,end_bag,count)
         success = false
         org_warning('Cannot move more than '..destination_max..' items into that inventory ('..end_bag..')')
     end
-    return success, full_bag
+    return success, full_bag, limbo_bag, limbo_ind
 end
 
 function items:it()

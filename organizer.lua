@@ -351,7 +351,8 @@ function move_goal_item(goal_items, current_items)
         if not item:annihilated() or not item.hasFailed then
           local start_bag, start_ind = current_items:find(item)
           if start_bag then
-            is_success, full_bag = current_items:route(start_bag,start_ind,bag_id)
+            is_success, full_bag, start_bag, start_ind = current_items:route(start_bag,start_ind,bag_id)
+
             local route_status
             goal_items, current_items, route_status = handle_route_result(goal_items, current_items, is_success, full_bag)
             if route_status == 2 then -- Try again
@@ -477,7 +478,7 @@ function make_room(goal_items, current_items, bag_id)
     end
     if not will_dump_space_be_made then
       is_make_room_success = false
-      return is_make_room_success
+      return is_make_room_success, goal_items, current_items
     end
   end
   
@@ -485,7 +486,8 @@ function make_room(goal_items, current_items, bag_id)
   local bag_max = windower.ffxi.get_bag_info(0).max
   local new_ind
   if bag_id ~= 0 and current_items[0]._info.n < bag_max then
-      new_ind = current_items[bag_id][start_ind]:move(0,0x52)
+      local item_count = current_items[bag_id][start_ind].count or 1
+      new_ind = current_items[bag_id][start_ind]:move(0,0x52,item_count)
       simulate_item_delay()
       if new_ind then
         is_make_room_success = true
@@ -495,7 +497,7 @@ function make_room(goal_items, current_items, bag_id)
     org_warning('Inventory is at max capacity.')
   end
   
-  return is_make_room_success
+  return is_make_room_success, goal_items, current_items
 end
 
 function freeze(file_name,bag,items)
