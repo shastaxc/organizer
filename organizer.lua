@@ -399,13 +399,13 @@ function move_goal_item(goal_items, current_items)
 end
 
 -- Return a status code. 0 = failure, 1 = success, 2 = try again
-function handle_route_result(goal_items, current_items, route_did_succeed, route_bag_was_full)
+function handle_route_result(goal_items, current_items, route_did_succeed, full_route_bag)
   local status = -1
   if route_did_succeed then
     status = 1
-  elseif route_bag_was_full and route_bag_was_full ~= 0 then
+  elseif full_route_bag and full_route_bag ~= 0 then
     -- Destination bag was full. Attempt to make room and try again.
-    local is_make_room_success = make_room(goal_items, current_items, route_bag_was_full)
+    local is_make_room_success = make_room(goal_items, current_items, full_route_bag)
     if is_make_room_success then
       status = 2
     else
