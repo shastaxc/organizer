@@ -29,10 +29,52 @@ local items = {}
 local bags = {}
 local item_tab = {}
 
+local nomad_moogle
+local clear_moogles
+do
+    local names = {'Nomad Moogle', 'Pilgrim Moogle'}
+    local moogles = {}
+    
+    clear_moogles = function()
+        moogles = {}
+    end
+    
+    nomad_moogle = function()
+        if #moogles == 0 then
+            for _,name in ipairs(names) do
+                local npcs = windower.ffxi.get_mob_list(name)
+                for index in pairs(npcs) do
+                    table.insert(moogles,index)
+                end
+            end
+        end
+        
+        local player = windower.ffxi.get_mob_by_target('me')
+        for _, moo_index in ipairs(moogles) do
+            local moo = windower.ffxi.get_mob_by_index(moo_index)
+            if moo and (moo.x - player.x)^2 + (moo.y - player.y)^2 < 36 then
+                return true
+            end
+        end
+        return false
+    end
+end
+
+windower.register_event('zone change',function() 
+    clear_moogles()
+end)
+
 local function validate_bag(bag_table)
-    if (bag_table.access == 'Everywhere' or (bag_table.access == 'Mog House' and windower.ffxi.get_info().mog_house)) and
-        windower.ffxi.get_bag_info(bag_table.id) then
-        return true
+    if type(bag_table) == 'table' and windower.ffxi.get_bag_info(bag_table.id) then 
+        if bag_table.access == 'Everywhere' then
+            return true
+        elseif bag_table.access == 'Mog House' then 
+            if windower.ffxi.get_info().mog_house then
+                return true
+            elseif nomad_moogle() and bag_table.english ~= 'Storage' then -- Storage is not available at Nomad Moogles
+                return true
+            end
+        end
     end
     return false
 end
@@ -75,13 +117,13 @@ end
 
 function items:find(item)
     for bag_name,bag_id in pairs(settings.bag_priority) do
-      real_bag_id = s_to_bag(bag_name)
-      org_debug("find", "Searching "..bag_name.." for "..res.items[item.id].english..".")
+        real_bag_id = s_to_bag(bag_name)
+        org_debug("find", "Searching "..bag_name.." for "..res.items[item.id].english..".")
         if self[real_bag_id] and self[real_bag_id]:contains(item) then
-          org_debug("find", "Found "..res.items[item.id].english.." in "..bag_name..".")
+            org_debug("find", "Found "..res.items[item.id].english.." in "..bag_name..".")
             return real_bag_id, self[real_bag_id]:contains(item)
         else
-          org_debug("find", "Didn't find "..res.items[item.id].english.." in "..bag_name..".")
+            org_debug("find", "Didn't find "..res.items[item.id].english.." in "..bag_name..".")
         end
     end
     org_debug("find", "Didn't find "..res.items[item.id].english.." in any bags.")
@@ -89,62 +131,62 @@ function items:find(item)
 end
 
 function items:route(start_bag,start_ind,end_bag,count)
-    count = count or self[start_bag][start_ind].count
-    local success = true
-    local full_bag
-    local initial_bag = start_bag
-    local initial_ind = start_ind
-    local limbo_ind
-    local limbo_bag
-    local inventory_max = windower.ffxi.get_bag_info(0).max
-    -- If not in inventory and inventory not full, move it to inventory
-    if start_bag ~= 0 and self[0]._info.n < inventory_max then
-      -- Also get the new slot number of item after moving to inventory
-      limbo_ind = self[start_bag][start_ind]:move(0,0x52,count)
-      start_ind = limbo_ind
-      if limbo_ind then
-        limbo_bag = 0
-      else
-        limbo_bag = nil
+  count = count or self[start_bag][start_ind].count
+  local success = true
+  local full_bag
+  local initial_bag = start_bag
+  local initial_ind = start_ind
+  local limbo_ind
+  local limbo_bag
+  local inventory_max = windower.ffxi.get_bag_info(0).max
+  -- If not in inventory and inventory not full, move it to inventory
+  if start_bag ~= 0 and self[0]._info.n < inventory_max then
+    -- Also get the new slot number of item after moving to inventory
+    limbo_ind = self[start_bag][start_ind]:move(0,0x52,count)
+    start_ind = limbo_ind
+    if limbo_ind then
+      limbo_bag = 0
+    else
+      limbo_bag = nil
+      limbo_ind = nil
+    end
+  elseif start_bag ~= 0 and self[0]._info.n >= inventory_max then
+      success = false
+      full_bag = 0
+      org_warning('Cannot move more than '..inventory_max..' items into inventory')
+      return success, full_bag, limbo_bag, limbo_ind
+  end
+
+  -- At this point, item is guaranteed to be in inventory
+
+  -- Get destination bag info
+  local destination_enabled = windower.ffxi.get_bag_info(end_bag).enabled
+  local destination_max = windower.ffxi.get_bag_info(end_bag).max
+
+  -- If you don't have access to the destination bag, operation fails
+  if not destination_enabled then
+      success = false
+      org_warning('Cannot move to '..tostring(end_bag)..' because it is disabled')
+  -- If destination bag is not inventory, ensure there is room in bag then transfer item
+  elseif start_ind and end_bag ~= 0 and self[end_bag]._info.n < destination_max then
+      start_ind = self[0][start_ind]:move(end_bag,0x52,count)
+      simulate_item_delay()
+      if start_ind then
+        success = true
         limbo_ind = nil
+        limbo_bag = nil
+      else
+        success = false
       end
-    elseif start_bag ~= 0 and self[0]._info.n >= inventory_max then
-        success = false
-        full_bag = 0
-        org_warning('Cannot move more than '..inventory_max..' items into inventory')
-        return success, full_bag, limbo_bag, limbo_ind
-    end
-
-    -- At this point, item is guaranteed to be in inventory
-
-    -- Get destination bag info
-    local destination_enabled = windower.ffxi.get_bag_info(end_bag).enabled
-    local destination_max = windower.ffxi.get_bag_info(end_bag).max
-
-    -- If you don't have access to the destination bag, operation fails
-    if not destination_enabled then
-        success = false
-        org_warning('Cannot move to '..tostring(end_bag)..' because it is disabled')
-    -- If destination bag is not inventory, ensure there is room in bag then transfer item
-    elseif start_ind and end_bag ~= 0 and self[end_bag]._info.n < destination_max then
-        start_ind = self[0][start_ind]:move(end_bag,0x52,count)
-        simulate_item_delay()
-        if start_ind then
-          success = true
-          limbo_ind = nil
-          limbo_bag = nil
-        else
-          success = false
-        end
-    elseif not start_ind then
-        success = false
-        org_warning('Initial movement of the route failed. ('..tostring(start_bag)..' '..tostring(initial_ind)..' '..tostring(start_ind)..' '..tostring(end_bag)..')')
-    elseif self[end_bag]._info.n >= destination_max then
-        full_bag = end_bag
-        success = false
-        org_warning('Cannot move more than '..destination_max..' items into that inventory ('..end_bag..')')
-    end
-    return success, full_bag, limbo_bag, limbo_ind
+  elseif not start_ind then
+      success = false
+      org_warning('Initial movement of the route failed. ('..tostring(start_bag)..' '..tostring(initial_ind)..' '..tostring(start_ind)..' '..tostring(end_bag)..')')
+  elseif self[end_bag]._info.n >= destination_max then
+      full_bag = end_bag
+      success = false
+      org_warning('Cannot move more than '..destination_max..' items into that inventory ('..end_bag..')')
+  end
+  return success, full_bag, limbo_bag, limbo_ind
 end
 
 function items:it()

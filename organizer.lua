@@ -38,7 +38,7 @@ slips = require 'slips'
 
 _addon.name = 'Organizer'
 _addon.author = 'Byrth, maintainer: Rooks, reworked by: Shasta'
-_addon.version = 2.20210604
+_addon.version = 2.20210628
 _addon.commands = {'organizer','org'}
 
 _static = {
@@ -302,6 +302,7 @@ windower.register_event('addon command',function(...)
     org_debug("command", "Organizer complete")
 
 end)
+
 -- Attempt to move each goal item to it's target bag. Count successes and failures.
 function get(goal_items,current_items)
     org_verbose('Getting!')
@@ -563,172 +564,172 @@ function tidy(goal_items,current_items,usable_bags)
 end
 
 function organize(goal_items)
-    org_message('Starting...')
-    local current_items = Items.new()
-    local dump_bags = get_dump_bags()
-    
-    local total_goal_items = 0
-    for bag_id,bag in pairs(goal_items) do
-      for ind,item in bag:it() do
-        total_goal_items = total_goal_items + 1
-      end
-    end
-
-    local did_process_all = false
-    local loop_limit = total_goal_items
-    while loop_limit > 0 do
-      -- Clear out inventory up until dump bags are full or inv is clean
-      goal_items, current_items = tidy(goal_items,current_items,dump_bags)
-      -- Check off goal items that are already in correct bag
-      goal_items, current_items = clean_goal(goal_items,current_items)
+  org_message('Starting...')
+  local current_items = Items.new()
+  local dump_bags = get_dump_bags()
   
-      -- Iterate through goal items to put them into proper bags; if goal bag is
-      -- full, move a non-goal item out of it first.
-      goal_items, current_items, did_process_all = move_goal_item(goal_items, current_items)
-
-      simulate_item_delay()
-      
-      if did_process_all then break end
-      loop_limit = loop_limit - 1
+  local total_goal_items = 0
+  for bag_id,bag in pairs(goal_items) do
+    for ind,item in bag:it() do
+      total_goal_items = total_goal_items + 1
     end
+  end
 
+  local did_process_all = false
+  local loop_limit = total_goal_items
+  while loop_limit > 0 do
+    -- Clear out inventory up until dump bags are full or inv is clean
     goal_items, current_items = tidy(goal_items,current_items,dump_bags)
+    -- Check off goal items that are already in correct bag
+    goal_items, current_items = clean_goal(goal_items,current_items)
+
+    -- Iterate through goal items to put them into proper bags; if goal bag is
+    -- full, move a non-goal item out of it first.
+    goal_items, current_items, did_process_all = move_goal_item(goal_items, current_items)
+
+    simulate_item_delay()
     
-    local count,failures = 0,T{}
-    for bag_id,bag in pairs(goal_items) do
-      for ind,item in bag:it() do
-        if item:annihilated() then
-          count = count + 1
-        else
-          item.bag_id = bag_id
-          failures:append(item)
-        end
+    if did_process_all then break end
+    loop_limit = loop_limit - 1
+  end
+
+  goal_items, current_items = tidy(goal_items,current_items,dump_bags)
+  
+  local count,failures = 0,T{}
+  for bag_id,bag in pairs(goal_items) do
+    for ind,item in bag:it() do
+      if item:annihilated() then
+        count = count + 1
+      else
+        item.bag_id = bag_id
+        failures:append(item)
       end
     end
-    org_message('Done! - '..count..' items sorted and '..table.length(failures)..' items failed!')
-    if table.length(failures) > 0 then
-        for i,v in failures:it() do
-            org_verbose('Item Failed: '..i.name..' '..(i.augments and tostring(T(i.augments)) or ''))
-        end
-    end
+  end
+  org_message('Done! - '..count..' items sorted and '..table.length(failures)..' items failed!')
+  if table.length(failures) > 0 then
+      for i,v in failures:it() do
+          org_verbose('Item Failed: '..i.name..' '..(i.augments and tostring(T(i.augments)) or ''))
+      end
+  end
 end
 
 function clean_goal(goal_items,current_items)
-    for i,bag in pairs(goal_items) do
-        for ind,item in bag:it() do
-            local potential_ind = current_items[i]:contains(item)
-            if potential_ind then
-                -- If it is already in the right spot, annihilate it.
-                item:annihilate(item.count)
-                current_items[i][potential_ind]:annihilate(current_items[i][potential_ind].count)
-            end
-        end
-    end
-    return goal_items, current_items
+  for i,bag in pairs(goal_items) do
+      for ind,item in bag:it() do
+          local potential_ind = current_items[i]:contains(item)
+          if potential_ind then
+              -- If it is already in the right spot, annihilate it.
+              item:annihilate(item.count)
+              current_items[i][potential_ind]:annihilate(current_items[i][potential_ind].count)
+          end
+      end
+  end
+  return goal_items, current_items
 end
 
 function incompletion_check(goal_items,remainder)
-    -- Does not work. On cycle 1, you fill up your inventory without purging unnecessary stuff out.
-    -- On cycle 2, your inventory is full. A gentler version of tidy needs to be in the loop somehow.
-    local remaining = 0
-    for i,v in pairs(goal_items) do
-        for n,m in v:it() do
-            if not m:annihilated() then
-                remaining = remaining + 1
-            end
-        end
-    end
-    return remaining ~= 0 and remaining < remainder and remaining
+  -- Does not work. On cycle 1, you fill up your inventory without purging unnecessary stuff out.
+  -- On cycle 2, your inventory is full. A gentler version of tidy needs to be in the loop somehow.
+  local remaining = 0
+  for i,v in pairs(goal_items) do
+      for n,m in v:it() do
+          if not m:annihilated() then
+              remaining = remaining + 1
+          end
+      end
+  end
+  return remaining ~= 0 and remaining < remainder and remaining
 end
 
 function thaw(file_name,bag)
-    local bags = _static.bag_ids[bag] and {[bag]=file_name} or table.reassign({},_static.bag_ids) -- One bag name or all of them if no bag is specified
-    if settings.default_file:sub(-4) ~= '.lua' then
-        settings.default_file = settings.default_file..'.lua'
-    end
-    for i,v in pairs(_static.bag_ids) do
-        bags[i] = bags[i] and windower.file_exists(windower.addon_path..'data/'..i..'/'..file_name) and file_name or default_file_name()
-    end
-    bags.temporary = nil
-    local inv_structure = {}
-    for cur_bag,file in pairs(bags) do
-        local f,err = loadfile(windower.addon_path..'data/'..cur_bag..'/'..file)
-        if f and not err then
-            local success = false
-            success, inv_structure[cur_bag] = pcall(f)
-            if not success then
-                org_warning('User File Error (Syntax) - '..inv_structure[cur_bag])
-                inv_structure[cur_bag] = nil
-            end
-        elseif bag and cur_bag:lower() == bag:lower() then
-            org_warning('User File Error (Loading) - '..err)
-        end
-    end
-    -- Convert all the extdata back to a normal string
-    for i,v in pairs(inv_structure) do
-        for n,m in pairs(v) do
-            if m.extdata then
-                inv_structure[i][n].extdata = string.parse_hex(m.extdata)
-            end
-        end
-    end
-    return Items.new(inv_structure)
+  local bags = _static.bag_ids[bag] and {[bag]=file_name} or table.reassign({},_static.bag_ids) -- One bag name or all of them if no bag is specified
+  if settings.default_file:sub(-4) ~= '.lua' then
+      settings.default_file = settings.default_file..'.lua'
+  end
+  for i,v in pairs(_static.bag_ids) do
+      bags[i] = bags[i] and windower.file_exists(windower.addon_path..'data/'..i..'/'..file_name) and file_name or default_file_name()
+  end
+  bags.temporary = nil
+  local inv_structure = {}
+  for cur_bag,file in pairs(bags) do
+      local f,err = loadfile(windower.addon_path..'data/'..cur_bag..'/'..file)
+      if f and not err then
+          local success = false
+          success, inv_structure[cur_bag] = pcall(f)
+          if not success then
+              org_warning('User File Error (Syntax) - '..inv_structure[cur_bag])
+              inv_structure[cur_bag] = nil
+          end
+      elseif bag and cur_bag:lower() == bag:lower() then
+          org_warning('User File Error (Loading) - '..err)
+      end
+  end
+  -- Convert all the extdata back to a normal string
+  for i,v in pairs(inv_structure) do
+      for n,m in pairs(v) do
+          if m.extdata then
+              inv_structure[i][n].extdata = string.parse_hex(m.extdata)
+          end
+      end
+  end
+  return Items.new(inv_structure)
 end
 
 function org_message(msg,col)
-    windower.add_to_chat(col or 8,'Organizer: '..msg)
-    flog(_debugging.debug_log, 'Organizer [MSG] '..msg)
+  windower.add_to_chat(col or 8,'Organizer: '..msg)
+  flog(_debugging.debug_log, 'Organizer [MSG] '..msg)
 end
 
 function org_warning(msg)
-    if _debugging.warnings then
-        windower.add_to_chat(123,'Organizer: '..msg)
-    end
-    flog(_debugging.debug_log, 'Organizer [WARN] '..msg)
+  if _debugging.warnings then
+      windower.add_to_chat(123,'Organizer: '..msg)
+  end
+  flog(_debugging.debug_log, 'Organizer [WARN] '..msg)
 end
 
 function org_debug(level, msg)
-    if(_debugging.enabled) then
-        if (_debugging.debug[level]) then
-            flog(_debugging.debug_log, 'Organizer [DEBUG] ['..level..']: '..msg)
-        end
-    end
+  if(_debugging.enabled) then
+      if (_debugging.debug[level]) then
+          flog(_debugging.debug_log, 'Organizer [DEBUG] ['..level..']: '..msg)
+      end
+  end
 end
 
 
 function org_error(msg)
-    error('Organizer: '..msg)
-    flog(_debugging.debug_log, 'Organizer [ERROR] '..msg)
+  error('Organizer: '..msg)
+  flog(_debugging.debug_log, 'Organizer [ERROR] '..msg)
 end
 
 function org_verbose(msg,col)
-    if tostring(settings.verbose):lower() ~= 'false' then
-        windower.add_to_chat(col or 8,'Organizer: '..msg)
-    end
-    flog(_debugging.debug_log, 'Organizer [VERBOSE] '..msg)
+  if tostring(settings.verbose):lower() ~= 'false' then
+      windower.add_to_chat(col or 8,'Organizer: '..msg)
+  end
+  flog(_debugging.debug_log, 'Organizer [VERBOSE] '..msg)
 end
 
 function default_file_name()
-    player = windower.ffxi.get_player()
-    job_name = res.jobs[player.main_job_id]['english_short']
-    return player.name..'_'..job_name..'.lua'
+  player = windower.ffxi.get_player()
+  job_name = res.jobs[player.main_job_id]['english_short']
+  return player.name..'_'..job_name..'.lua'
 end
 
 function simulate_item_delay()
-    if settings.item_delay and settings.item_delay > 0 then
-        coroutine.sleep(settings.item_delay)
-    end
+  if settings.item_delay and settings.item_delay > 0 then
+      coroutine.sleep(settings.item_delay)
+  end
 end
 
 function get_dump_bags()
-    local dump_bags = {}
-    for i,v in pairs(settings.dump_bags) do
-        if i and s_to_bag(i) then
-            dump_bags[tonumber(v)] = s_to_bag(i)
-        elseif i then
-            org_error('The bag name ("'..tostring(i)..'") in dump_bags entry #'..tostring(v)..' in the ../addons/organizer/data/settings.xml file is not valid.\nValid options are '..tostring(res.bags))
-            return
-        end
-    end
-    return dump_bags
+  local dump_bags = {}
+  for i,v in pairs(settings.dump_bags) do
+      if i and s_to_bag(i) then
+          dump_bags[tonumber(v)] = s_to_bag(i)
+      elseif i then
+          org_error('The bag name ("'..tostring(i)..'") in dump_bags entry #'..tostring(v)..' in the ../addons/organizer/data/settings.xml file is not valid.\nValid options are '..tostring(res.bags))
+          return
+      end
+  end
+  return dump_bags
 end
