@@ -24,6 +24,8 @@
 --(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 --SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+inspect = require 'inspect'
+
 local Items = {}
 local items = {}
 local bags = {}
@@ -290,14 +292,19 @@ function bags:contains(item,bool)
 end
 
 function bags:find_unfinished_stack(item,bool)
+    -- Find all instances of specified item in this bag
     local tab = self:find_all_instances(item,bool,false)
     if tab then
-        for i in tab:it() do
-            if res.items[self[i].id] and res.items[self[i].id].stack > self[i].count then
+        -- Iterate through each instance found
+        for _,i in ipairs(tab) do
+            -- Find first instance of an unfinished stack whose count plus the specified item's count
+            -- will not exceed max stack amount and return its index
+            if res.items[self[i].id] and (res.items[self[i].id].stack >= self[i].count + item.count) then
                 return i
             end
         end
     end
+    -- Return false if no instances of item found in this bag
     return false
 end
 
@@ -314,9 +321,10 @@ function item_tab:transfer(dest_bag,count)
     if not (target_bag_id == 0 or parent_bag_id == 0) then
         org_warning('Cannot move between two bags that are not inventory bags.')
     else
-        while parent[self.index] and targ_inv:find_unfinished_stack(parent[self.index]) do
+        local unfinished_index = targ_inv:find_unfinished_stack(parent[self.index])
+        while parent[self.index] and unfinished_index do
             org_debug("stacks", "Moving ("..res.items[self.id].english..') from '..res.bags[parent_bag_id].en..' to '..res.bags[target_bag_id].en..'')
-            local rv = parent[self.index]:move(dest_bag,targ_inv:find_unfinished_stack(parent[self.index]),count)
+            local rv = parent[self.index]:move(dest_bag,unfinished_index,count)
             if not rv then
                 org_debug("stacks", "FAILED moving ("..res.items[self.id].english..') from '..res.bags[parent_bag_id].en..' to '..res.bags[target_bag_id].en..'')
                 break
@@ -349,51 +357,54 @@ function item_tab:move(dest_bag,dest_slot,count)
     -- issues with bazaared items makes me think we shouldn't screw with status'd items at all
     if(self.status > 0) then
         if(self.status == 5) then
-            org_verbose('Skipping item: ('..res.items[self.id].english..') because it is currently equipped.')
+          org_verbose('Skipping item: ('..res.items[self.id].english..') because it is currently equipped.')
             return false
         elseif(self.status == 19) then
-            org_verbose('Skipping item: ('..res.items[self.id].english..') because it is an equipped linkshell.')
+          org_verbose('Skipping item: ('..res.items[self.id].english..') because it is an equipped linkshell.')
             return false
         elseif(self.status == 25) then
-            org_verbose('Skipping item: ('..res.items[self.id].english..') because it is in your bazaar.')
+          org_verbose('Skipping item: ('..res.items[self.id].english..') because it is in your bazaar.')
             return false
         end
     end
 
     -- check the 'retain' lists
     if((parent_bag_id == 0) and _retain[self.id]) then
-        org_verbose('Skipping item: ('..res.items[self.id].english..') because it is set to be retained ('.._retain[self.id]..')')
+      org_verbose('Skipping item: ('..res.items[self.id].english..') because it is set to be retained ('.._retain[self.id]..')')
         return false
     end
 
     if((parent_bag_id == 0) and settings.retain and settings.retain.items) then
         local cat = res.items[self.id].category
         if(cat ~= 'Weapon' and cat ~= 'Armor') then
-            org_verbose('Skipping item: ('..res.items[self.id].english..') because non-equipment is set be retained')
+          org_verbose('Skipping item: ('..res.items[self.id].english..') because non-equipment is set be retained')
             return false
         end
     end
 
     -- respect the ignore list
     if(_ignore_list[parent_bag_name] and _ignore_list[parent_bag_name][res.items[self.id].english]) then
-        org_verbose('Skipping item: ('..res.items[self.id].english..') because it is on the ignore list')
+      org_verbose('Skipping item: ('..res.items[self.id].english..') because it is on the ignore list')
         return false
     end
 
     -- Make sure the source can be pulled from
     if not _valid_pull[parent_bag_id] then
-        org_verbose('Skipping item: ('..res.items[self.id].english..') - can not be pulled from '..res.bags[parent_bag_id].en..') ')
+      org_verbose('Skipping item: ('..res.items[self.id].english..') - can not be pulled from '..res.bags[parent_bag_id].en..') ')
         return false
     end
 
     -- Make sure the target can be pushed to
     if not _valid_dump[target_bag_id] then
-        org_verbose('Skipping item: ('..res.items[self.id].english..') - can not be pushed to '..res.bags[target_bag_id].en..') ')
+      org_verbose('Skipping item: ('..res.items[self.id].english..') - can not be pushed to '..res.bags[target_bag_id].en..') ')
         return false
     end
 
     if not self:annihilated() and
-        (not dest_slot or not targ_inv[dest_slot] or (targ_inv[dest_slot] and res.items[targ_inv[dest_slot].id].stack < targ_inv[dest_slot].count + count)) and
+        (not targ_inv[dest_slot] or (
+          (targ_inv[dest_slot].id == self.id) and
+          (res.items[targ_inv[dest_slot].id].stack >= targ_inv[dest_slot].count + count)
+        )) and
         (targ_inv._info.bag_id == 0 or parent._info.bag_id == 0) and
         wardrobecheck(targ_inv._info.bag_id,self.id) and
         self:free() then
@@ -404,17 +415,17 @@ function item_tab:move(dest_bag,dest_slot,count)
         parent:remove(self.index)
         return new_index
     elseif not dest_slot then
-        org_warning('Cannot move the item ('..res.items[self.id].english..'). Target inventory is full ('..res.bags[dest_bag].en..')')
+      org_warning('Cannot move the item ('..res.items[self.id].english..'). Target inventory is full ('..res.bags[dest_bag].en..')')
     elseif targ_inv[dest_slot] and res.items[targ_inv[dest_slot].id].stack < targ_inv[dest_slot].count + count then
-        org_warning('Cannot move the item ('..res.items[self.id].english..'). Target inventory slot would be overly full ('..(targ_inv[dest_slot].count + count)..' items in '..res.bags[dest_bag].en..')')
+      org_warning('Cannot move the item ('..res.items[self.id].english..'). Target inventory slot would be overly full ('..(targ_inv[dest_slot].count + count)..' items in '..res.bags[dest_bag].en..')')
     elseif (targ_inv._info.bag_id ~= 0 and parent._info.bag_id ~= 0) then
-        org_warning('Cannot move the item ('..res.items[self.id].english..'). Attempting to move from a non-inventory to a non-inventory bag ('..res.bags[parent._info.bag_id].en..' '..res.bags[dest_bag].en..')')
+      org_warning('Cannot move the item ('..res.items[self.id].english..'). Attempting to move from a non-inventory to a non-inventory bag ('..res.bags[parent._info.bag_id].en..' '..res.bags[dest_bag].en..')')
     elseif self:annihilated() then
-        org_warning('Cannot move the item ('..res.items[self.id].english..'). It has already been moved.')
+      org_warning('Cannot move the item ('..res.items[self.id].english..'). It has already been moved.')
     elseif not wardrobecheck(targ_inv._info.bag_id,self.id) then
-        org_warning('Cannot move the item ('..res.items[self.id].english..') to the wardrobe. Wardrobe cannot hold an item of its type ('..tostring(res.items[self.id].type)..').')
+      org_warning('Cannot move the item ('..res.items[self.id].english..') to the wardrobe. Wardrobe cannot hold an item of its type ('..tostring(res.items[self.id].type)..').')
     elseif not self:free() then
-        org_warning('Cannot free the item ('..res.items[self.id].english..'). It has an unaddressable item status ('..tostring(self.status)..').')
+      org_warning('Cannot free the item ('..res.items[self.id].english..'). It has an unaddressable item status ('..tostring(self.status)..').')
     end
     return false
 end
