@@ -144,7 +144,7 @@ function items:route(start_bag,start_ind,end_bag,count)
   -- If not in inventory and inventory not full, move it to inventory
   if start_bag ~= 0 and self[0]._info.n < inventory_max then
     -- Also get the new slot number of item after moving to inventory
-    limbo_ind = self[start_bag][start_ind]:move(0,0x52,count)
+    limbo_ind = self[start_bag][start_ind]:transfer(0)
     start_ind = limbo_ind
     if limbo_ind then
       limbo_bag = 0
@@ -171,7 +171,7 @@ function items:route(start_bag,start_ind,end_bag,count)
       org_warning('Cannot move to '..tostring(end_bag)..' because it is disabled')
   -- If destination bag is not inventory, ensure there is room in bag then transfer item
   elseif start_ind and end_bag ~= 0 and self[end_bag]._info.n < destination_max then
-      start_ind = self[0][start_ind]:move(end_bag,0x52,count)
+      start_ind = self[0][start_ind]:transfer(end_bag)
       simulate_item_delay()
       if start_ind then
         success = true
@@ -322,18 +322,19 @@ function item_tab:transfer(dest_bag,count)
         org_warning('Cannot move between two bags that are not inventory bags.')
     else
         local unfinished_index = targ_inv:find_unfinished_stack(parent[self.index])
+        local rv
         while parent[self.index] and unfinished_index do
             org_debug("stacks", "Moving ("..res.items[self.id].english..') from '..res.bags[parent_bag_id].en..' to '..res.bags[target_bag_id].en..'')
-            local rv = parent[self.index]:move(dest_bag,unfinished_index,count)
+            rv = parent[self.index]:move(dest_bag,unfinished_index,count)
             if not rv then
                 org_debug("stacks", "FAILED moving ("..res.items[self.id].english..') from '..res.bags[parent_bag_id].en..' to '..res.bags[target_bag_id].en..'')
                 break
             end
         end
         if parent[self.index] then
-            parent[self.index]:move(dest_bag)
+            rv = parent[self.index]:move(dest_bag)
         end
-        return true
+        return rv
     end
     return false
 end
