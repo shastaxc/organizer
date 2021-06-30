@@ -595,21 +595,23 @@ function organize(goal_items)
 
   goal_items, current_items = tidy(goal_items,current_items,dump_bags)
   
-  local count,failures = 0,T{}
+  -- Check to see if all items made it to their intended destinations
+  local processed_count,failures = 0,T{}
   for bag_id,bag in pairs(goal_items) do
     for ind,item in bag:it() do
       if item:annihilated() then
-        count = count + 1
-      else
+        processed_count = processed_count + 1
+      end
+      if current_items[bag_id]:contains(item) or not item:annihilated() then
         item.bag_id = bag_id
         failures:append(item)
       end
     end
   end
-  org_message('Done! - '..count..' items sorted and '..table.length(failures)..' items failed!')
+  org_message('Done! - '..processed_count..' items sorted and '..table.length(failures)..' items failed!')
   if table.length(failures) > 0 then
       for i,v in failures:it() do
-          org_verbose('Item Failed: '..i.name..' '..(i.augments and tostring(T(i.augments)) or ''))
+          org_message('Org Failed: '..i.name..' '..(i.augments and tostring(T(i.augments)) or ''))
       end
   end
 end
