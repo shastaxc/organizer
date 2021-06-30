@@ -38,7 +38,7 @@ slips = require 'slips'
 
 _addon.name = 'Organizer'
 _addon.author = 'Byrth, maintainer: Rooks, reworked by: Shasta'
-_addon.version = 2.20210628
+_addon.version = 2.20210629
 _addon.commands = {'organizer','org'}
 
 _static = {
