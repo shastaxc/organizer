@@ -24,8 +24,6 @@
 --(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 --SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-inspect = require 'inspect'
-
 local Items = {}
 local items = {}
 local bags = {}
@@ -42,15 +40,26 @@ do
     end
     
     nomad_moogle = function()
+        -- if #moogles == 0 then
+        --     for _,name in ipairs(names) do
+        --         local npcs = windower.ffxi.get_mob_list(name)
+        --         for index in pairs(npcs) do
+        --             table.insert(moogles,index)
+        --         end
+        --     end
+        -- end
+        -- get_mob_list is not working, try alternate method
         if #moogles == 0 then
-            for _,name in ipairs(names) do
-                local npcs = windower.ffxi.get_mob_list(name)
-                for index in pairs(npcs) do
-                    table.insert(moogles,index)
-                end
-            end
+          local npcs = windower.ffxi.get_mob_array()
+          for _,mob in pairs(npcs) do
+              for _,name in ipairs(names) do
+                  if name == mob.name then
+                      table.insert(moogles, mob.index)
+                  end
+              end
+          end
         end
-        
+
         local player = windower.ffxi.get_mob_by_target('me')
         for _, moo_index in ipairs(moogles) do
             local moo = windower.ffxi.get_mob_by_index(moo_index)
