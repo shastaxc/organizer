@@ -17,7 +17,11 @@ If gear for your job ends up in a dump bag when you think it shouldn't, ensure t
 
 I would not recommend setting any wardrobes or inventory as dump bags. Also, you will need access to all your defined dump bags when running the `//gs org` command or it will error out.
 
-# OLD NOTES
+## Known Issues
+
+Does not always work as expected when doing `//gs org` if there is equipment (or ammo) in your inventory (main bag). Simply move those items elsewhere manually or automatically throw them into dump bags with `//org tidy`, then re-run `//gs org` again.
+
+# NOTES FROM ORIGINAL ORGANIZER
 
 ## Organizer (//org)
 
