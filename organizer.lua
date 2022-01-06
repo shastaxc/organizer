@@ -35,6 +35,7 @@ require 'lists'
 require 'functions'
 config = require 'config'
 slips = require 'slips'
+inspect = require 'inspect'
 
 _addon.name = 'Organizer'
 _addon.author = 'Byrth, maintainer: Rooks, reworked by: Shasta'

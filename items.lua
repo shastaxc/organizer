@@ -418,18 +418,37 @@ function item_tab:move(dest_bag,dest_slot,count)
     end
 
     if not self:annihilated() and
-        (not targ_inv[dest_slot] or (
-          (targ_inv[dest_slot].id == self.id) and
-          (res.items[targ_inv[dest_slot].id].stack >= targ_inv[dest_slot].count + count)
-        )) and
         (targ_inv._info.bag_id == 0 or parent._info.bag_id == 0) and
         wardrobecheck(targ_inv._info.bag_id,self.id) and
         self:free() then
-        windower.packets.inject_outgoing(0x29,string.char(0x29,6,0,0)..'I':pack(count)..string.char(parent._info.bag_id,dest_bag,self.index,dest_slot))
-        org_verbose('Moving item! ('..res.items[self.id].english..') from '..res.bags[parent._info.bag_id].en..' '..parent._info.n..' to '..res.bags[dest_bag].en..' '..targ_inv._info.n..')')
-        local new_index = targ_inv:new(self.id, count, self.extdata, self.augments)
-        parent:remove(self.index)
-        return new_index
+        local is_same_id = targ_inv[dest_slot] and targ_inv[dest_slot].id == self.id
+        local will_not_overflow = targ_inv[dest_slot] and 
+            (res.items[targ_inv[dest_slot].id].stack >= targ_inv[dest_slot].count + count)
+        local is_stacking = is_same_id and will_not_overflow
+        local is_target_empty = not targ_inv[dest_slot]
+        if is_stacking then
+          local original_dest_count = targ_inv[dest_slot].id == self.id and targ_inv[dest_slot].count
+          local original_src_count = self.count
+          -- Inject packet to move item
+          windower.packets.inject_outgoing(0x29,string.char(0x29,6,0,0)..'I':pack(count)..string.char(parent._info.bag_id,dest_bag,self.index,dest_slot))
+          org_verbose('Moving item! ('..res.items[self.id].english..') from '..res.bags[parent._info.bag_id].en..' '..parent._info.n..' to '..res.bags[dest_bag].en..' '..targ_inv._info.n..')')
+          -- Update target data to reflect change in item count
+          targ_inv[dest_slot].count = original_dest_count + count
+          -- If source data still has more than 0 count, update count, otherwise remove it
+          if original_src_count - count > 0 then
+            self.count = original_src_count - count
+          else
+            parent:remove(self.index)
+          end
+          return dest_slot
+        elseif is_target_empty then
+          -- Move to empty slot in dest bag
+          windower.packets.inject_outgoing(0x29,string.char(0x29,6,0,0)..'I':pack(count)..string.char(parent._info.bag_id,dest_bag,self.index,dest_slot))
+          org_verbose('Stacking item! ('..res.items[self.id].english..') from '..res.bags[parent._info.bag_id].en..' '..parent._info.n..' to '..res.bags[dest_bag].en..' '..targ_inv._info.n..')')
+          local new_index = targ_inv:new(self.id, count, self.extdata, self.augments)
+          parent:remove(self.index)
+          return new_index
+        end
     elseif not dest_slot then
       org_warning('Cannot move the item ('..res.items[self.id].english..'). Target inventory is full ('..res.bags[dest_bag].en..')')
     elseif targ_inv[dest_slot] and res.items[targ_inv[dest_slot].id].stack < targ_inv[dest_slot].count + count then
