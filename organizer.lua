@@ -38,7 +38,7 @@ slips = require 'slips'
 
 _addon.name = 'Organizer'
 _addon.author = 'Byrth, maintainer: Rooks, reworked by: Shasta'
-_addon.version = 2.20210629
+_addon.version = 2.20220105
 _addon.commands = {'organizer','org'}
 
 _static = {
@@ -266,7 +266,7 @@ windower.register_event('addon command',function(...)
         org_debug("command", "Calling get with file_name '"..file_name.."' and bag '"..bag.."'")
         get(thaw(file_name, bag))
     elseif (command == 't' or command == 'tidy') then
-        org_debug("command", "Calling tidy with file_name '"..file_name.."' and bag '"..bag.."'")
+      org_debug("command", "Calling tidy with file_name '"..file_name.."' and bag '"..bag.."'")
         tidy(thaw(file_name, bag))
     elseif (command == 'f' or command == 'freeze') then
 

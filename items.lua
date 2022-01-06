@@ -300,21 +300,22 @@ function bags:contains(item,bool)
     return false
 end
 
+-- Return map of indices and stack size of matching incomplete stacks of the specified item in the specified bag
 function bags:find_unfinished_stack(item,bool)
     -- Find all instances of specified item in this bag
     local tab = self:find_all_instances(item,bool,false)
+    -- Initialize list of unfinished stacks
+    local instances = L{}
     if tab then
         -- Iterate through each instance found
         for _,i in ipairs(tab) do
-            -- Find first instance of an unfinished stack whose count plus the specified item's count
-            -- will not exceed max stack amount and return its index
-            if res.items[self[i].id] and (res.items[self[i].id].stack >= self[i].count + item.count) then
-                return i
+            -- Filter out any full stacks
+            if res.items[self[i].id] and (res.items[self[i].id].stack > self[i].count) then
+                instances:append({index=i, max_stack=res.items[self[i].id].stack, current_stack=self[i].count})
             end
         end
     end
-    -- Return false if no instances of item found in this bag
-    return false
+    return instances
 end
 
 function item_tab:transfer(dest_bag,count)
@@ -330,17 +331,23 @@ function item_tab:transfer(dest_bag,count)
     if not (target_bag_id == 0 or parent_bag_id == 0) then
         org_warning('Cannot move between two bags that are not inventory bags.')
     else
-        local unfinished_index = targ_inv:find_unfinished_stack(parent[self.index])
+        -- Find an incomplete stack of the item being transferred in the destination bag (if it's a stacking item like ammo).
+        local incomplete_stacks = targ_inv:find_unfinished_stack(parent[self.index])
         local rv
-        while parent[self.index] and unfinished_index do
-            org_debug("stacks", "Moving ("..res.items[self.id].english..') from '..res.bags[parent_bag_id].en..' to '..res.bags[target_bag_id].en..'')
-            rv = parent[self.index]:move(dest_bag,unfinished_index,count)
+        for _,stack in ipairs(incomplete_stacks) do
+            org_debug("stacks", "Stacking ("..res.items[self.id].english..') from '..res.bags[parent_bag_id].en..' to '..res.bags[target_bag_id].en..'')
+            local move_count = math.min(stack.max_stack - stack.current_stack, count)
+            rv = parent[self.index]:move(dest_bag,stack.index,move_count)
             if not rv then
-                org_debug("stacks", "FAILED moving ("..res.items[self.id].english..') from '..res.bags[parent_bag_id].en..' to '..res.bags[target_bag_id].en..'')
+                org_debug("stacks", "FAILED stacking ("..res.items[self.id].english..') from '..res.bags[parent_bag_id].en..' to '..res.bags[target_bag_id].en..'')
                 break
+            else
+              -- Update to reflect remaining amount of items
+              count = count - move_count
             end
         end
-        if parent[self.index] then
+        -- If item still remains after stacking (or if not stackable), move to an empty slot in the destination bag.
+        if parent[self.index] and count > 0 then
             rv = parent[self.index]:move(dest_bag)
         end
         return rv
@@ -421,7 +428,6 @@ function item_tab:move(dest_bag,dest_slot,count)
         windower.packets.inject_outgoing(0x29,string.char(0x29,6,0,0)..'I':pack(count)..string.char(parent._info.bag_id,dest_bag,self.index,dest_slot))
         org_verbose('Moving item! ('..res.items[self.id].english..') from '..res.bags[parent._info.bag_id].en..' '..parent._info.n..' to '..res.bags[dest_bag].en..' '..targ_inv._info.n..')')
         local new_index = targ_inv:new(self.id, count, self.extdata, self.augments)
-        --print(parent._info.bag_id,dest_bag,self.index,new_index)
         parent:remove(self.index)
         return new_index
     elseif not dest_slot then
