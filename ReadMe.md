@@ -1,3 +1,5 @@
+# Reorganizer
+
 The purpose of this addon is to move all the gear you need for your job into your wardrobes with just 1 command. The magic is that it determines what gear you will need based on your current job's gearswap file!
 
 # Installation / Setup
