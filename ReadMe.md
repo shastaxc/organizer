@@ -1,113 +1,62 @@
-# Note from Shasta regarding rework of Organizer
+The purpose of this addon is to move all the gear you need for your job into your wardrobes with just 1 command. The magic is that it determines what gear you will need based on your current job's gearswap file!
 
-After reworking this addon, the old and cumbersome `org freeze` method may no longer work. The primary purpose of this addon is now to allow `//gs org` to work more efficiently. All your bags must be loaded (so wait after zoning) in order to work. Unlike previously, you now only need to have 2 empty spaces in your `inventory` bag for this to work. All other bags may be full as long as you don't have any equipment in your inventory. If you have equipment in your inventory, you'll need that many free spaces in your dump bags for them to be placed.
+# Installation / Setup
+1. If you already had the old `organizer` addon, unload it, and disable automatic loading. This is a conflicting addon.
+2. Download the latest version of `reorganizer` addon here: https://github.com/shastaxc/organizer/releases/latest
+3. Move the `reorganizer-lib.lua` file into your `addons/gearswap/libs` folder. Overwrite if there is already a file there by that name.
+4. Put the following line at the very top of your gearswap's job lua so the `//gs reorg` command can be recognized: `include('reorganizer-lib')`
+5. Load the addon by executing the following command in game chat `//lua load reorganizer` or `//lua reload reorganizer` if you already had the old version loaded.
+6. To enable automatic loading, either use the `plugin_manager` addon and add this to its `settings.xml` file, or add the following line to your Windower's `init.txt` script: `//lua load reorganizer`
+7. After loading the addon in game for the first time, a `data` folder will be generated in your `addons/reorganizer` folder, and inside will be a `settings.xml` file. This file needs to be configured. See the "Settings Configuration" section below.
 
-You will need the corresponding updated `organizer-lib.lua` in the `GearSwap/libs` folder. Move it from the `addons/organizer` folder to the `addons/GearSwap/libs` folder and overwrite the existing file. Reload gearswap after this is done with `//lua r gearswap`.
+## Settings Configuration
+The full list of bag names recognized in settings are as follows:
+`Safe, Safe2, Storage, Locker, Satchel, Sack, Case, Wardrobe, Wardrobe2, Wardrobe3, Wardrobe4`
 
-If you have special gear that is equipped in your scripts via `equip()` functions but are not part of a `sets.whatever` table, it will not be sorted properly (will be put into a dump bag). To overcome this, simply add it to a dummy set. I use the syntax `sets.org.job[1]`, `sets.org.job[2]`, etc. You'll also need a `sets.org = {}` and `sets.org.job = {}` to avoid getting errors.
+### Bag Priority
+This section defines bags that are allowed to have gear pulled *from* them in order to equip your job.
 
-This rework is intended to work with gear only. I recommend configuring your settings to retain items:
+In the `bag_priority` section, always keep the wardrobes there (the ones you have unlocked). Add to this section the bags you want to use for storing gear. It's highly recommended that you use Satchel, Sack, and Case before any others because you always have access to those 3 bags regardless of where you are. If you use Mog Safe (for example), this addon will only work properly when in range of a moogle that has access to it. To add a bag to your `bag_priority` list, add its opening and closing tags (the content between the tags is irrelevant but must be something). For example: `<Case>7</Case>`.
+
+### Dump Bags
+Dump bags are bags where items are allowed to be moved *into* to make space for gear you need for your job. Gear from the "Inventory" bag will get put there too if it's in Inventory when the `//gs reorg` command is run.
+
+In the `dump_bags` section, it's highly recommended to simply make this list the same as `bag_priority`, but remove all the wardrobes. It is not recommended to set any wardrobes or inventory as dump bags.
+
+### Retain
+This section must contain `<items>true</items>`
+
+This is because when this addon was split from `organizer`, it was only ever intended to work with gear (AKA "items").
+
+# How To Use
+1. Make sure you don't have junk gear in your inventory, or it will be sorted away into a random bag by mistake.
+2. Change to a job you want to use.
+3. Run the `//gs reorg` command.
+
+# Restrictions
+* You must have at least 2 free spaces in your inventory (specifically inventory, not the other bags).
+* You must have a gearswap file defined for the job which you want the gear pulled.
+* You may run into issues if you run `//gs reorg` without first allowing your items to fully load after zoning.
+* You will need access to all your defined dump bags when running the `//gs reorg` command or it will error out.
+* Only gear defined in the global `sets` table will be automatically pulled for your job. If you want gear that is not in a `sets` table (such as Warp Ring), you must create a dummy set and add those items. You can do this by creating sets like the following:
 ```
-<retain>
-    <items>true</items>
-</retain>
+  sets.org = {}
+  sets.org.job = {}
+  sets.org.job[1] = {ring1="Warp Ring"}
+  sets.org.job[2] = {back="Nexus Cape"}
 ```
 
+# Note from the developer regarding rework of Organizer
+
+After reworking this addon, the old and cumbersome `org freeze` and `org thaw` method no longer works. The purpose of the rework of this addon is to allow `//gs reorg` to work more efficiently and make day-to-day operation less cumbersome. 
+
+# Troubleshooting
 If gear for your job ends up in a dump bag when you think it shouldn't, ensure that it is in a `sets` table in your gearswap lua, and make sure it is spelled and formatted properly.
 
-I would not recommend setting any wardrobes or inventory as dump bags. Also, you will need access to all your defined dump bags when running the `//gs org` command or it will error out.
+There are a couple debug tools you can use to help you figure things out on your own. In the file `addons/gearswap/lib/reorganizer-lib.lua` near the top there are three settings you can set to `true` which will create log files when you run `//gs reorg`. These variables are called `debug_gear_list`, `debug_move_list`, and `debug_found_list`
+
+You can also turn on the verbose setting in the file `addons/reorganizer/data/settings.xml` by adding this to the "global" section: `<verbose>true</verbose>`
 
 ## Known Issues
-
-Does not always work as expected when doing `//gs org` if there is equipment (or ammo) in your inventory (main bag). Simply move those items elsewhere manually or automatically throw them into dump bags with `//org tidy`, then re-run `//gs org` again.
-
-# NOTES FROM ORIGINAL ORGANIZER
-
-## Organizer (//org)
-
-A multi-purpose inventory management solution. Similar to GearCollector; uses packets.
-
-For the purpose of this addon, a `bag` is: "Safe", "Storage", "Locker", "Satchel", "Sack", "Case", "Wardrobe", "Safe 2". 
-
-For commands that use a filename, if one is not specified, it defaults to Name_JOB.lua, e.g., Rooks_PLD.lua
-For commands that specify a bag, if one is not specified, it defaults to all, and will cycle through all of them.
-
-The addon command is `org`, so `org freeze` will freeze, etc.
-
-This utility is still in development and there are at least a couple of known issues (it does not always move out gear that is currently equipped, argument parsing could be better). It is designed to work simplest as a snapshotting utility (freeze and organize without arugments), but it should work no matter what you want to do with it.
-
-### Settings
-
-#### auto_heal
-Setting this feature to anything other than false will cause Organizer to use /heal after getting/storing gear.
-
-#### bag_priority
-The order that bags will be looked in for requested gear.
-
-#### dump_bags
-The order that bags will be filled with unspecified gear from your inventory.
-
-#### item_delay
-A delay, in seconds, between item storage/retrieval. Defaults to 0 (no delay)
-
-
-### Commands
-Commands below are written with their arguments indicated using square brackets, but you should not use square brackets when entering the commands in game. Default options are italicized.
-
-#### Freeze
-
-```
-freeze [bag] [filename]
-```
-
-Freezes the current contents of a `bag` or **all bags** to the specified `filename` or **Name_ShortJob.lua** in the respective data directory/directories. This effectively takes a snapshot of your inventory for that job. So using `//org freeze` as a Dancer named Pablo would result in freezing all of your bags in files named Pablo_DNC.lua.
-
-#### Get
-
-```
-get [bag] [filename]
-```
-
-Thaws the frozen state specified by `filename` or **Name_ShortJob.lua** and `bag` or **all bags** and makes one attempt to move towards that state.
-
-
-#### Tidy
-
-```
-tidy [bag] [filename]
-```
-
-Thaws a frozen state specified by `filename` or **Name_ShortJob.lua** and `bag` or **all bags** and makes one attempt to purge anything currently in inventory that shouldn't be into dump bags.
-
-#### Organize
-
-```
-organize [bag] [filename]
-```
-
-Thaws a frozen state specified by `filename` or **Name_ShortJob.lua** and `bag` or **all bags** and executes repeated Get and Tidy commands until a steady state is reached (aka. you have your gear). With no arguments, it will attempt to restore the entire thawed snapshot.
-
-### Gearswap integration
-Additionally, Organizer integrates with GearSwap. In your lua, just add this:
-
-```
-include('organizer-lib')
-```
-
-And then in your Mog House, after changing jobs:
-
-```
-//gs org
-```
-
-And it will fill your inventory with the items from your sets, and put everything else away (it does a very good job, even when there are space concerns, but it's not perfect. Make sure to do a "//gs validate" after!)
-
-Additionally, if you have extra items you want to bring along, simply define a table named `organizer_items` like so:
-
-```
-organizer_items = {
-    echos="Echo Drops",
-    shihei="Shihei",
-    orb="Macrocosmic Orb"
-}
-```
+* Does not always work as expected when doing `//gs reorg` if there is equipment (or ammo) in your Inventory bag. Simply move those items elsewhere manually or automatically throw them into dump bags with `//reorg tidy`, then re-run `//gs reorg` again.
+* Will not work if gear you need for your job is in Inventory and already equipped.

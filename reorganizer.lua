@@ -1,4 +1,4 @@
---Copyright (c) 2015, Byrthnoth and Rooks
+--Copyright (c) 2021-2022, Shasta
 --All rights reserved.
 
 --Redistribution and use in source and binary forms, with or without
@@ -36,34 +36,34 @@ require 'functions'
 config = require 'config'
 slips = require 'slips'
 
-_addon.name = 'Organizer'
-_addon.author = 'Byrth, maintainer: Rooks, reworked by: Shasta'
-_addon.version = 2.20220109
-_addon.commands = {'organizer','org'}
+_addon.name = 'Reorganizer'
+_addon.author = 'Shasta (legacy devs: Byrth, Rooks)'
+_addon.version = '2022JAN09-3'
+_addon.commands = {'reorganizer','reorg'}
 
 _static = {
-    bag_ids = {
-        inventory=0,
-        safe=1,
-        storage=2,
-        temporary=3,
-        locker=4,
-        satchel=5,
-        sack=6,
-        case=7,
-        wardrobe=8,
-        safe2=9,
-        wardrobe2=10,
-        wardrobe3=11,
-        wardrobe4=12,
-    },
-    wardrobe_ids = {[8]=true,[10]=true,[11]=true,[12]=true},
-    usable_bags = {1,9,4,2,5,6,7,8,10,11,12}
+  bag_ids = {
+    inventory=0,
+    safe=1,
+    storage=2,
+    temporary=3,
+    locker=4,
+    satchel=5,
+    sack=6,
+    case=7,
+    wardrobe=8,
+    safe2=9,
+    wardrobe2=10,
+    wardrobe3=11,
+    wardrobe4=12,
+  },
+  wardrobe_ids = {[8]=true,[10]=true,[11]=true,[12]=true},
+  usable_bags = {1,9,4,2,5,6,7,8,10,11,12}
 }
 
 _global = {
-    language = 'english',
-    language_log = 'english_log',
+  language = 'english',
+  language_log = 'english_log',
 }
 
 _ignore_list = {}
@@ -72,73 +72,73 @@ _valid_pull = {}
 _valid_dump = {}
 
 default_settings = {
-    dump_bags = {['Safe']=1,['Safe2']=2,['Locker']=3,['Storage']=4},
-    bag_priority = {['Safe']=1,['Safe2']=2,['Locker']=3,['Storage']=4,['Satchel']=5,['Sack']=6,['Case']=7,['Inventory']=8,['Wardrobe']=9,['Wardrobe2']=10,['Wardrobe3']=11,['Wardrobe4']=12,},
-    item_delay = 0,
-    ignore = {},
-    retain = {
-        ["moogle_slip_gear"]=false,
-        ["seals"]=false,
-        ["items"]=false,
-        ["slips"]=false,
-    },
-    auto_heal = false,
-    default_file='default.lua',
-    verbose=false,
+  dump_bags = {['Safe']=1,['Safe2']=2,['Locker']=3,['Storage']=4},
+  bag_priority = {['Safe']=1,['Safe2']=2,['Locker']=3,['Storage']=4,['Satchel']=5,['Sack']=6,['Case']=7,['Inventory']=8,['Wardrobe']=9,['Wardrobe2']=10,['Wardrobe3']=11,['Wardrobe4']=12,},
+  item_delay = 0,
+  ignore = {},
+  retain = {
+    ["moogle_slip_gear"]=false,
+    ["seals"]=false,
+    ["items"]=false,
+    ["slips"]=false,
+  },
+  auto_heal = false,
+  default_file='default.lua',
+  verbose=false,
 }
 
 _debugging = {
-    debug = {
-        ['contains']=true,
-        ['command']=true,
-        ['find']=true,
-        ['find_all']=true,
-        ['items']=true,
-        ['move']=true,
-        ['settings']=true,
-        ['stacks']=true
-    },
-    debug_log = 'data\\organizer-debug.log',
-    enabled = false,
-    warnings = false, -- This mode gives warnings about impossible item movements and crash conditions.
+  debug = {
+    ['contains']=true,
+    ['command']=true,
+    ['find']=true,
+    ['find_all']=true,
+    ['items']=true,
+    ['move']=true,
+    ['settings']=true,
+    ['stacks']=true
+  },
+  debug_log = 'data\\organizer-debug.log',
+  enabled = false,
+  warnings = false, -- This mode gives warnings about impossible item movements and crash conditions.
 }
 
 debug_log = files.new(_debugging.debug_log)
 
 function s_to_bag(str)
-    if not str and tostring(str) then return end
-    for i,v in pairs(res.bags) do
-        if v.en:lower():gsub(' ', '') == str:lower() then
-            return v.id
-        end
+  if not str and tostring(str) then return end
+  for i,v in pairs(res.bags) do
+    if v.en:lower():gsub(' ', '') == str:lower() then
+      return v.id
     end
+  end
 end
 
 windower.register_event('load',function()
-    debug_log:write('Organizer loaded at '..os.date()..'\n')
+  debug_log:write('Reorganizer loaded at '..os.date()..'\n')
 
-    if debugging then windower.debug('load') end
-    options_load()
+  if debugging then windower.debug('load') end
+  options_load()
 end)
 
 function options_load( )
+  if not windower.dir_exists(windower.addon_path..'data\\') then
+    org_debug("settings", "Creating data directory")
+    windower.create_dir(windower.addon_path..'data\\')
     if not windower.dir_exists(windower.addon_path..'data\\') then
-        org_debug("settings", "Creating data directory")
-        windower.create_dir(windower.addon_path..'data\\')
-        if not windower.dir_exists(windower.addon_path..'data\\') then
-            org_error("unable to create data directory!")
-        end
+      org_error("unable to create data directory!")
     end
+  end
 
-    for bag_name, bag_id in pairs(_static.bag_ids) do
-        if not windower.dir_exists(windower.addon_path..'data\\'..bag_name) then
-            org_debug("settings", "Creating data directory for "..bag_name)
-            windower.create_dir(windower.addon_path..'data\\'..bag_name)
-            if not windower.dir_exists(windower.addon_path..'data\\'..bag_name) then
-                org_error("unable to create"..bag_name.."directory!")
-            end
-        end
+  for bag_name, bag_id in pairs(_static.bag_ids) do
+    if not windower.dir_exists(windower.addon_path..'data\\'..bag_name) then
+      org_debug("settings", "Creating data directory for "..bag_name)
+      windower.create_dir(windower.addon_path..'data\\'..bag_name)
+      if not windower.dir_exists(windower.addon_path..'data\\'..bag_name) then
+        org_error("unable to create"..bag_name.."directory!")
+      end
     end
+  end
 
     -- We can't just do a:
     --
@@ -299,7 +299,7 @@ windower.register_event('addon command',function(...)
         windower.send_command('input /heal')
     end
 
-    org_debug("command", "Organizer complete")
+    org_debug("command", "Reorganizer complete")
 
 end)
 
@@ -679,36 +679,36 @@ function thaw(file_name,bag)
 end
 
 function org_message(msg,col)
-  windower.add_to_chat(col or 8,'Organizer: '..msg)
-  flog(_debugging.debug_log, 'Organizer [MSG] '..msg)
+  windower.add_to_chat(col or 8,'Reorganizer: '..msg)
+  flog(_debugging.debug_log, 'Reorganizer [MSG] '..msg)
 end
 
 function org_warning(msg)
   if _debugging.warnings then
-      windower.add_to_chat(123,'Organizer: '..msg)
+      windower.add_to_chat(123,'Reorganizer: '..msg)
   end
-  flog(_debugging.debug_log, 'Organizer [WARN] '..msg)
+  flog(_debugging.debug_log, 'Reorganizer [WARN] '..msg)
 end
 
 function org_debug(level, msg)
   if(_debugging.enabled) then
       if (_debugging.debug[level]) then
-          flog(_debugging.debug_log, 'Organizer [DEBUG] ['..level..']: '..msg)
+          flog(_debugging.debug_log, 'Reorganizer [DEBUG] ['..level..']: '..msg)
       end
   end
 end
 
 
 function org_error(msg)
-  error('Organizer: '..msg)
-  flog(_debugging.debug_log, 'Organizer [ERROR] '..msg)
+  error('Reorganizer: '..msg)
+  flog(_debugging.debug_log, 'Reorganizer [ERROR] '..msg)
 end
 
 function org_verbose(msg,col)
   if tostring(settings.verbose):lower() ~= 'false' then
-      windower.add_to_chat(col or 8,'Organizer: '..msg)
+      windower.add_to_chat(col or 8,'Reorganizer: '..msg)
   end
-  flog(_debugging.debug_log, 'Organizer [VERBOSE] '..msg)
+  flog(_debugging.debug_log, 'Reorganizer [VERBOSE] '..msg)
 end
 
 function default_file_name()
@@ -729,7 +729,7 @@ function get_dump_bags()
       if i and s_to_bag(i) then
           dump_bags[tonumber(v)] = s_to_bag(i)
       elseif i then
-          org_error('The bag name ("'..tostring(i)..'") in dump_bags entry #'..tostring(v)..' in the ../addons/organizer/data/settings.xml file is not valid.\nValid options are '..tostring(res.bags))
+          org_error('The bag name ("'..tostring(i)..'") in dump_bags entry #'..tostring(v)..' in the ../addons/reorganizer/data/settings.xml file is not valid.\nValid options are '..tostring(res.bags))
           return
       end
   end

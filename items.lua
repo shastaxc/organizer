@@ -1,4 +1,4 @@
---Copyright (c) 2015, Byrthnoth and Rooks
+--Copyright (c) 2021-2022, Shasta
 --All rights reserved.
 
 --Redistribution and use in source and binary forms, with or without
@@ -211,7 +211,7 @@ function items:it()
             i = i + 1
             local id = s_to_bag(bag_priority_list[i])
             if not id then
-                org_error('The bag name ("'..tostring(bag_priority_list[i])..'") with priority '..tostring(i)..' in the ../addons/organizer/data/settings.xml file is not valid.\nValid options are '..tostring(res.bags))
+                org_error('The bag name ("'..tostring(bag_priority_list[i])..'") with priority '..tostring(i)..' in the ../addons/reorganizer/data/settings.xml file is not valid.\nValid options are '..tostring(res.bags))
             end
             if self[id] and validate_bag(res.bags[id]) then
                 return id, self[id]
