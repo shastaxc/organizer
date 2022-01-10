@@ -2,6 +2,11 @@
 
 res = include('resources')
 
+--Debug
+dump_gear_list = true --Dump the generated gear set
+dump_move_list = true --Dump the unassigned gear list
+dump_found_list = true --Dump the list of found equipment from scanning wardrobes
+
 local org = {}
 register_unhandled_command(function(...)
     local cmds = {...}
@@ -48,6 +53,10 @@ function org.export_set()
         for _,info in ipairs(tab) do
             flattab:append({id=tab.id,name=tab.name,log_name=tab.log_name,augments=info.augments,count=info.count})
         end
+    end
+
+    if dump_gear_list then --Dump parsed gearset from player-job.lua
+      org.dump_gear_table(flattab,"gs-parsed-gearsets.log")
     end
 
     -- See if we have any non-equipment items to drag along
@@ -176,11 +185,18 @@ function org.export_set()
           movable_items[ward_id][list_index] = nil
           -- Add to list of assigned_items.
           assigned_items[ward_id]:append(v)
+          if dump_found_list then
+            org.debug("Found "..v.name.." (id: "..v.id..") in bag id "..ward_id)
+          end
         else
           -- List as an unassigned item.
           unassigned_items:append(v)
+          if dump_found_list then
+            org.debug(v.name.." (id: "..v.id..") not found. Adding to unassigned list")
+          end
         end
     end
+
     -- Remove nil entries from movable_items
     local temp = T{}
     for bag_id,bag in pairs(movable_items) do
@@ -194,6 +210,11 @@ function org.export_set()
     movable_items = nil
     movable_items = table.copy(temp, true)
     temp = nil
+
+    -- Dump list of gear targetted for move
+    if dump_move_list then
+      org.dump_gear_table(unassigned_items,"gear-to-move.log")
+    end
 
     -- Allocate gear that's not already in wardrobes to the wardrobes' empty space
     for _,ward_id in ipairs(ward_ids) do
@@ -345,4 +366,75 @@ function org.string_augments(tab)
         if tab.augment ~= 'none' then aug_str = aug_str.."'"..augment.."'," end
     end
     if aug_str ~= '' then return '{\n'..aug_str..'}' end
+end
+
+function org.dump_gear_table(gear_table,filename)
+  local fw = file.new('../organizer/data/debug/'..filename)
+  if fw and gear_table then
+    fw:write("Dumping gear table contents:\nreturn")
+    fw:write(serialize(gear_table,nil,nil,filename))
+  end
+end
+
+function org.debug(s)
+  local fw = file.new('../organizer/data/debug/debug.log')
+  if fw and s then
+    fw:append(s.."\n")
+  end
+end
+
+-- serialize ~ by YellowAfterlife (https://yal.cc/lua-serializer/)
+-- Converts value back into according Lua presentation
+-- Accepts strings, numbers, boolean values, and tables.
+-- Table values are serialized recursively, so tables linking to themselves or
+-- linking to other tables in "circles". Table indexes can be numbers, strings,
+-- and boolean values.
+function serialize(object, multiline, depth, name)
+	depth = depth or 0
+	if multiline == nil then multiline = true end
+	local padding = string.rep('    ', depth) -- can use '\t' if printing to file
+	local r = padding -- result string
+	if name then -- should start from name
+		r = r .. (
+			-- enclose in brackets if not string or not a valid identifier
+			-- thanks to Boolsheet from #love@irc.oftc.net for string pattern
+			(type(name) ~= 'string' or name:find('^([%a_][%w_]*)$') == nil)
+			and ('[' .. (
+				(type(name) == 'string')
+				and string.format('%q', name)
+				or tostring(name))
+				.. ']')
+			or tostring(name)) .. ' = '
+	end
+	if type(object) == 'table' then
+		r = r .. '{' .. (multiline and '\n' or ' ')
+		local length = 0
+		for i, v in ipairs(object) do
+			r = r .. serialize(v, multiline, multiline and (depth + 1) or 0) .. ','
+				.. (multiline and '\n' or ' ')
+			length = i
+		end
+		for i, v in pairs(object) do
+			local itype = type(i) -- convert type into something easier to compare:
+			itype =(itype == 'number') and 1
+				or (itype == 'string') and 2
+				or (itype == 'boolean') and 3
+				or error('Serialize: Unsupported index type "' .. itype .. '"')
+			local skip = -- detect if item should be skipped
+				((itype == 1) and ((i % 1) == 0) and (i >= 1) and (i <= length)) -- ipairs part
+				or ((itype == 2) and (string.sub(i, 1, 1) == '_')) -- prefixed string
+			if not skip then
+				r = r .. serialize(v, multiline, multiline and (depth + 1) or 0, i) .. ','
+					.. (multiline and '\n' or ' ')
+			end
+		end
+		r = r .. (multiline and padding or '') .. '}'
+	elseif type(object) == 'string' then
+		r = r .. string.format('%q', object)
+	elseif type(object) == 'number' or type(object) == 'boolean' then
+		r = r .. tostring(object)
+	else
+		error('Unserializeable value "' .. tostring(object) .. '"')
+	end
+	return r
 end
