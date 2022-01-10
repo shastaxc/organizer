@@ -1,3 +1,4 @@
+--Copyright (c) 2021-2022, Shasta
 res = include('resources')
 
 --Debug
