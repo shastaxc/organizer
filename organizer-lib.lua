@@ -3,9 +3,9 @@
 res = include('resources')
 
 --Debug
-dump_gear_list = true --Dump the generated gear set
-dump_move_list = true --Dump the unassigned gear list
-dump_found_list = true --Dump the list of found equipment from scanning wardrobes
+debug_gear_list = true --Dump the generated gear set
+debug_move_list = true --Dump the unassigned gear list
+debug_found_list = true --Dump the list of found equipment from scanning wardrobes
 
 local org = {}
 register_unhandled_command(function(...)
@@ -55,8 +55,8 @@ function org.export_set()
         end
     end
 
-    if dump_gear_list then --Dump parsed gearset from player-job.lua
-      org.dump_gear_table(flattab,"gs-parsed-gearsets.log")
+    if debug_gear_list then --Dump parsed gearset from player-job.lua
+      org.debug_gear_table(flattab,"gs-parsed-gearsets.log")
     end
 
     -- See if we have any non-equipment items to drag along
@@ -185,13 +185,13 @@ function org.export_set()
           movable_items[ward_id][list_index] = nil
           -- Add to list of assigned_items.
           assigned_items[ward_id]:append(v)
-          if dump_found_list then
+          if debug_found_list then
             org.debug("Found "..v.name.." (id: "..v.id..") in bag id "..ward_id)
           end
         else
           -- List as an unassigned item.
           unassigned_items:append(v)
-          if dump_found_list then
+          if debug_found_list then
             org.debug(v.name.." (id: "..v.id..") not found. Adding to unassigned list")
           end
         end
@@ -212,8 +212,8 @@ function org.export_set()
     temp = nil
 
     -- Dump list of gear targetted for move
-    if dump_move_list then
-      org.dump_gear_table(unassigned_items,"gear-to-move.log")
+    if debug_move_list then
+      org.debug_gear_table(unassigned_items,"gear-to-move.log")
     end
 
     -- Allocate gear that's not already in wardrobes to the wardrobes' empty space
@@ -368,7 +368,7 @@ function org.string_augments(tab)
     if aug_str ~= '' then return '{\n'..aug_str..'}' end
 end
 
-function org.dump_gear_table(gear_table,filename)
+function org.debug_gear_table(gear_table,filename)
   local fw = file.new('../organizer/data/debug/'..filename)
   if fw and gear_table then
     fw:write("Dumping gear table contents:\nreturn")
