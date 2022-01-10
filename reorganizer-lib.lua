@@ -2,9 +2,9 @@
 res = include('resources')
 
 --Debug
-debug_gear_list = true --Dump the generated gear set
-debug_move_list = true --Dump the unassigned gear list
-debug_found_list = true --Dump the list of found equipment from scanning wardrobes
+debug_gear_list = false --Dump the generated gear set
+debug_move_list = false --Dump the unassigned gear list
+debug_found_list = false --Dump the list of found equipment from scanning wardrobes
 
 local org = {}
 register_unhandled_command(function(...)
@@ -371,7 +371,7 @@ function org.debug_gear_table(gear_table,filename)
   local fw = file.new('../reorganizer/data/debug/'..filename)
   if fw and gear_table then
     fw:write("Dumping gear table contents:\nreturn")
-    fw:write(serialize(gear_table,nil,nil,filename))
+    fw:write(org.serialize(gear_table,nil,nil,filename))
   end
 end
 
@@ -388,7 +388,7 @@ end
 -- Table values are serialized recursively, so tables linking to themselves or
 -- linking to other tables in "circles". Table indexes can be numbers, strings,
 -- and boolean values.
-function serialize(object, multiline, depth, name)
+function org.serialize(object, multiline, depth, name)
 	depth = depth or 0
 	if multiline == nil then multiline = true end
 	local padding = string.rep('    ', depth) -- can use '\t' if printing to file
@@ -409,7 +409,7 @@ function serialize(object, multiline, depth, name)
 		r = r .. '{' .. (multiline and '\n' or ' ')
 		local length = 0
 		for i, v in ipairs(object) do
-			r = r .. serialize(v, multiline, multiline and (depth + 1) or 0) .. ','
+			r = r .. org.serialize(v, multiline, multiline and (depth + 1) or 0) .. ','
 				.. (multiline and '\n' or ' ')
 			length = i
 		end
@@ -423,7 +423,7 @@ function serialize(object, multiline, depth, name)
 				((itype == 1) and ((i % 1) == 0) and (i >= 1) and (i <= length)) -- ipairs part
 				or ((itype == 2) and (string.sub(i, 1, 1) == '_')) -- prefixed string
 			if not skip then
-				r = r .. serialize(v, multiline, multiline and (depth + 1) or 0, i) .. ','
+				r = r .. org.serialize(v, multiline, multiline and (depth + 1) or 0, i) .. ','
 					.. (multiline and '\n' or ' ')
 			end
 		end
