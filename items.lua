@@ -271,8 +271,11 @@ function bags:find_all_instances(item,bool,first)
     local instances = L{}
     for i,v in self:it() do
         org_debug("find_all", "find_all_instances: slot="..i.." v="..res.items[v.id].english.." item="..res.items[item.id].english.." ")
-        if (bool or not v:annihilated()) and v.id == item.id then -- and v.count >= item.count then
-            if not item.augments or table.length(item.augments) == 0 or v.augments and extdata.compare_augments(item.augments,v.augments) then
+        -- Apply bool filter: true = look at all items, false = only look at unannihilated items
+        if (bool or not v:annihilated()) and v.id == item.id then
+            -- Check for item matches based on: ID match, augment match
+            if v.id == item.id and (not item.augments or table.length(item.augments) == 0 or v.augments
+                    and extdata.compare_augments(item.augments,v.augments)) then
                 -- May have to do a higher level comparison here for extdata.
                 -- If someone exports an enchanted item when the timer is
                 -- counting down then this function will return false for it.

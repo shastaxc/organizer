@@ -27,21 +27,47 @@
 res = include('resources')
 
 --Debug
-debug_gear_list = false --Dump the generated gear set
-debug_move_list = false --Dump the unassigned gear list
-debug_found_list = false --Dump the list of found equipment from scanning wardrobes
+debug_gear_list = true -- Print the generated gear set
+debug_move_list = true -- Print the unassigned gear list
+debug_found_list = true -- Print the list of found equipment from scanning wardrobes
 
-local org = {}
+local reorg = {}
 register_unhandled_command(function(...)
     local cmds = {...}
     for _,v in ipairs(cmds) do
         if S{'reorganizer','reorganize','reorg'}:contains(v:lower()) then
-            org.export_set()
+            -- Check if we're ready to start
+            if not reorg.ready_check() then
+                -- Tell user the operation was aborted
+                local err_msg = string.char(31,123)..'Reorganizer Library: Aborting.'..
+                  ' Equipment is in inventory bag.'..
+                  ' Run'..string.char(31,012)..' //reorg tidy'..string.char(31,123)..
+                  ' to automatically move it all into your dump bags.'
+                windower.add_to_chat(123, err_msg)
+                return true
+            end
+            reorg.export_set()
             return true
         end
     end
     return false
 end)
+
+-- Checks some prerequisite conditions to see if we're able to start reorganization.
+function reorg.ready_check()
+  -- If any equipment is in inventory when starting, abort operation
+  local inv_items = windower.ffxi.get_items(0)
+  for index,item in ipairs(inv_items) do
+    if item and item.id ~= 0 then
+      local info = res.items[item.id]
+      -- If weapon or armor type, abort operation (includes ammo)
+      if info.type == 4 or info.type == 5 then
+        return false
+      end
+    end
+  end
+  return true
+end
 
 -- Make lists which will tell Reorganizer where gear should go.
 -- If an item is already in wardrobe, it will be left there.
@@ -49,7 +75,7 @@ end)
 -- If there are still items that need assignment, they will be assigned to wardrobes until they hit max capacity, and
 -- any items currently in that wardrobe that aren't part of needed items for the job will attempt to move to dump bags.
 -- These item assignments are saved to file for Reorganizer addon to use, and then reorganizer command is called to do so.
-function org.export_set()
+function reorg.export_set()
     if not sets then
         windower.add_to_chat(123,'Reorganizer Library: Cannot export your sets for collection because the table is nil.')
         return
@@ -59,12 +85,12 @@ function org.export_set()
     end
     
     -- Make a table filled with the items from the sets table.
-    local item_list = org.unpack_names({},'L1',sets,{})
+    local item_list = reorg.unpack_names({},'L1',sets,{})
     
-    local trans_item_list = org.identify_items(item_list)
+    local trans_item_list = reorg.identify_items(item_list)
     
     for i,v in pairs(trans_item_list) do
-        trans_item_list[i] = org.simplify_entry(v)
+        trans_item_list[i] = reorg.simplify_entry(v)
     end
 
     if trans_item_list:length() == 0 then
@@ -80,14 +106,15 @@ function org.export_set()
     end
 
     if debug_gear_list then --Dump parsed gearset from player-job.lua
-      org.debug_gear_table(flattab,"gs-parsed-gearsets.log")
+      reorg.debug_gear_table(flattab,"gs-parsed-gearsets.log")
     end
 
+    -- TODO: Fix this feature (non-equipment items)
     -- See if we have any non-equipment items to drag along
     if organizer_items then
-        local organizer_item_list = org.unpack_names({}, 'L1', organizer_items, {})
+        local organizer_item_list = reorg.unpack_names({}, 'L1', organizer_items, {})
 
-        for _,tab in pairs(org.identify_items(organizer_item_list)) do
+        for _,tab in pairs(reorg.identify_items(organizer_item_list)) do
             count = gearswap.res.items[tab.id].stack
             flattab:append({id=tab.id,name=tab.name,log_name=tab.log_name,count=count})
         end
@@ -104,6 +131,7 @@ function org.export_set()
         available_items[bag.id] = windower.ffxi.get_items(bag.id)
       end
     end
+
     -- Check if all goal items exist in player's available bags
     local unavailable_items = T{}
     for i,v in ipairs(flattab) do
@@ -126,7 +154,7 @@ function org.export_set()
     end
     -- Print message about unavailable items
     if #unavailable_items > 0 then
-      local unavailable_msg = #unavailable_items..' item(s) unavailable: '
+      local unavailable_msg = #unavailable_items..' item(s) in inaccessible bag(s): '
       for i,v in pairs(unavailable_items) do
         unavailable_msg = unavailable_msg..v.name
         if i ~= #unavailable_items then
@@ -151,9 +179,53 @@ function org.export_set()
       flattab = table.reassign({}, temp)
     end
     
-    -- At this point I have a table of equipment pieces indexed by the inventory name.
-    -- I need to make a function that will translate that into a list of pieces in
-    -- inventory or wardrobe.
+    -- The functions up to this point attempted to determine how many multiples of an item might be needed, but
+    -- the logic is flawed for stackable items, like ammo which it indicates as needing count of 1. We need to mark
+    -- stackable items as stackable, find all the stacks in the player's bags, and attach their respective counts.
+
+    -- Mark items as stackable
+    local stackable_items = T{}
+    for i,item in ipairs(flattab) do
+      item.max_stack = gearswap.res.items[item.id].stack
+      -- If it is a stackable item, add it to new table and remove from current, to be re-added later.
+      if item.max_stack > 1 then
+        -- Adjust count to indicate that it's not an actual count
+        item.count = -1
+        stackable_items:append(item)
+        flattab:remove(i)
+      end
+    end
+    -- Determine how many stacks of stackable items exist in available bags. Add them all as separate instances to
+    -- the list, along with their current counts. We'll aim to move them all into wardrobes.
+    for _,stackable_item in ipairs(stackable_items) do
+      local found_one
+      for bag_id,bag in pairs(available_items) do
+        for available_item_index,available_item in ipairs(bag) do
+          -- Stackable items cannot be augmented, so we only need to compare IDs
+          if available_item and available_item.id == stackable_item.id then
+            found_one = true
+            -- Get the item's actual count, then throw it back into the flattab to be sorted later
+            local new_instance = {
+              id=stackable_item.id,
+              name=stackable_item.name,
+              log_name=stackable_item.log_name,
+              augments=available_item.augments,
+              count=available_item.count,
+              max_stack=stackable_item.max_stack
+            }
+            flattab:append(new_instance)
+          end
+        end
+      end
+      if not found_one then
+        reorg.debug("Stackables: Could not find any available "..stackable_item.name)
+        windower.add_to_chat(123, 'Reorganizer Library: Count not find any available'..stackable_item.name..'.')
+      end
+    end
+
+
+    -- At this point I have a table of items I need, and a table of available equipment pieces in various bags
+    -- indexed by the inventory name. I will use this info to plan which wardrobe each item will go into.
     local ward_ids = {8,10,11,12}
     local current_wards = {}
     local assigned_items = {}
@@ -185,14 +257,17 @@ function org.export_set()
       current_wards[id].max = windower.ffxi.get_bag_info(id).max
     end
   
-    local unassigned_items = T{}
+    -- Filter out items that are already in the right bag, so don't need to move
+    local unassigned_items = T{} -- Items that are not in the right bag
     for i,v in ipairs(flattab) do
         local found
         local ward_id
         local list_index
         for id,wardrobe in pairs(current_wards) do
             for n,m in ipairs(wardrobe) do
-                if m.id == v.id and (not v.augments or v.augments and gearswap.extdata.decode(m).augments and gearswap.extdata.compare_augments(v.augments,gearswap.extdata.decode(m).augments)) then
+                if m and v and m.id == v.id and m.count == v.count and (
+                        not v.augments or v.augments and gearswap.extdata.decode(m).augments
+                        and gearswap.extdata.compare_augments(v.augments,gearswap.extdata.decode(m).augments)) then
                     found = true
                     list_index = n
                     break
@@ -210,13 +285,13 @@ function org.export_set()
           -- Add to list of assigned_items.
           assigned_items[ward_id]:append(v)
           if debug_found_list then
-            org.debug("Found "..v.name.." (id: "..v.id..") in bag id "..ward_id)
+            reorg.debug("Found "..v.name.." (id: "..v.id..") in bag id "..ward_id)
           end
         else
           -- List as an unassigned item.
           unassigned_items:append(v)
           if debug_found_list then
-            org.debug(v.name.." (id: "..v.id..") not found. Adding to unassigned list")
+            reorg.debug(v.name.." (id: "..v.id..") not found. Adding to unassigned list")
           end
         end
     end
@@ -235,9 +310,9 @@ function org.export_set()
     movable_items = table.copy(temp, true)
     temp = nil
 
-    -- Dump list of gear targetted for move
+    -- Print list of gear targeted for move
     if debug_move_list then
-      org.debug_gear_table(unassigned_items,"gear-to-move.log")
+      reorg.debug_gear_table(unassigned_items,"gear-to-move.log")
     end
 
     -- Allocate gear that's not already in wardrobes to the wardrobes' empty space
@@ -280,7 +355,7 @@ function org.export_set()
     windower.send_command('wait 0.5;reorg o organizer-lib-file')
 end
 
-function org.simplify_entry(tab)
+function reorg.simplify_entry(tab)
     -- Some degree of this needs to be done in unpack_names or I won't be able to detect when two identical augmented items are equipped.
     local output = T{id=tab.id,name=tab.name,log_name=tab.log_name}
     local rare = gearswap.res.items[tab.id].flags:contains('Rare')
@@ -318,12 +393,12 @@ function org.simplify_entry(tab)
     return output
 end
 
-function org.identify_items(tab)
+function reorg.identify_items(tab)
     local name_to_id_map = {}
     local items = windower.ffxi.get_items()
-    for id,inv in pairs(items) do
-        if type(inv) == 'table' then
-            for ind,item in ipairs(inv) do
+    for id,bag in pairs(items) do
+        if type(bag) == 'table' then
+            for ind,item in ipairs(bag) do
                 if type(item) == 'table' and item.id and item.id ~= 0 then
                     name_to_id_map[gearswap.res.items[item.id][gearswap.language]:lower()] = item.id
                     name_to_id_map[gearswap.res.items[item.id][gearswap.language..'_log']:lower()] = item.id
@@ -333,7 +408,7 @@ function org.identify_items(tab)
     end
     local trans = T{}
     for i,v in pairs(tab) do
-        local item = name_to_id_map[i:lower()] and table.reassign({},gearswap.res.items[name_to_id_map[i:lower()]]) --and org.identify_unpacked_name(i,name_to_id_map)
+        local item = name_to_id_map[i:lower()] and table.reassign({},gearswap.res.items[name_to_id_map[i:lower()]]) --and reorg.identify_unpacked_name(i,name_to_id_map)
         if item then
             local n = gearswap.res.items[item.id][gearswap.language]:lower()
             local ln = gearswap.res.items[item.id][gearswap.language..'_log']:lower()
@@ -349,12 +424,12 @@ function org.identify_items(tab)
     return trans
 end
 
-function org.unpack_names(ret_tab,up,tab_level,unpacked_table)
+function reorg.unpack_names(ret_tab,up,tab_level,unpacked_table)
     for i,v in pairs(tab_level) do
         local flag = false
         if type(v)=='table' and i ~= 'augments' and not ret_tab[tostring(tab_level[i])] then
             ret_tab[tostring(tab_level[i])] = true
-            unpacked_table, ret_tab = org.unpack_names(ret_tab,i,v,unpacked_table)
+            unpacked_table, ret_tab = reorg.unpack_names(ret_tab,i,v,unpacked_table)
         elseif i=='name' then
             -- v is supposed to be a name, then.
             flag = true
@@ -379,7 +454,7 @@ function org.unpack_names(ret_tab,up,tab_level,unpacked_table)
     return unpacked_table, ret_tab
 end
 
-function org.string_augments(tab)
+function reorg.string_augments(tab)
     local aug_str = ''
     if tab.augments then
         for aug_ind,augment in pairs(tab.augments) do
@@ -392,15 +467,15 @@ function org.string_augments(tab)
     if aug_str ~= '' then return '{\n'..aug_str..'}' end
 end
 
-function org.debug_gear_table(gear_table,filename)
+function reorg.debug_gear_table(gear_table,filename)
   local fw = file.new('../reorganizer/data/debug/'..filename)
   if fw and gear_table then
     fw:write("Dumping gear table contents:\nreturn")
-    fw:write(org.serialize(gear_table,nil,nil,filename))
+    fw:write(reorg.serialize(gear_table,nil,nil,filename))
   end
 end
 
-function org.debug(s)
+function reorg.debug(s)
   local fw = file.new('../reorganizer/data/debug/debug.log')
   if fw and s then
     fw:append(s.."\n")
@@ -413,7 +488,7 @@ end
 -- Table values are serialized recursively, so tables linking to themselves or
 -- linking to other tables in "circles". Table indexes can be numbers, strings,
 -- and boolean values.
-function org.serialize(object, multiline, depth, name)
+function reorg.serialize(object, multiline, depth, name)
 	depth = depth or 0
 	if multiline == nil then multiline = true end
 	local padding = string.rep('    ', depth) -- can use '\t' if printing to file
@@ -434,7 +509,7 @@ function org.serialize(object, multiline, depth, name)
 		r = r .. '{' .. (multiline and '\n' or ' ')
 		local length = 0
 		for i, v in ipairs(object) do
-			r = r .. org.serialize(v, multiline, multiline and (depth + 1) or 0) .. ','
+			r = r .. reorg.serialize(v, multiline, multiline and (depth + 1) or 0) .. ','
 				.. (multiline and '\n' or ' ')
 			length = i
 		end
@@ -448,7 +523,7 @@ function org.serialize(object, multiline, depth, name)
 				((itype == 1) and ((i % 1) == 0) and (i >= 1) and (i <= length)) -- ipairs part
 				or ((itype == 2) and (string.sub(i, 1, 1) == '_')) -- prefixed string
 			if not skip then
-				r = r .. org.serialize(v, multiline, multiline and (depth + 1) or 0, i) .. ','
+				r = r .. reorg.serialize(v, multiline, multiline and (depth + 1) or 0, i) .. ','
 					.. (multiline and '\n' or ' ')
 			end
 		end

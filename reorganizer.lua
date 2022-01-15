@@ -38,7 +38,7 @@ slips = require 'slips'
 
 _addon.name = 'Reorganizer'
 _addon.author = 'Shasta (legacy devs: Byrth, Rooks)'
-_addon.version = '2022JAN09-3'
+_addon.version = '2022JAN15'
 _addon.commands = {'reorganizer','reorg'}
 
 _static = {
@@ -266,8 +266,9 @@ windower.register_event('addon command',function(...)
         org_debug("command", "Calling get with file_name '"..file_name.."' and bag '"..bag.."'")
         get(thaw(file_name, bag))
     elseif (command == 't' or command == 'tidy') then
-      org_debug("command", "Calling tidy with file_name '"..file_name.."' and bag '"..bag.."'")
+        org_debug("command", "Calling tidy with file_name '"..file_name.."' and bag '"..bag.."'")
         tidy(thaw(file_name, bag))
+        windower.add_to_chat(008, 'Reorganizer: Finished tidying!')
     elseif (command == 'f' or command == 'freeze') then
 
         org_debug("command", "Calling freeze command")
@@ -292,6 +293,7 @@ windower.register_event('addon command',function(...)
     elseif (command == 'o' or command == 'organize') then
         org_debug("command", "Calling organize command")
         organize(thaw(file_name, bag))
+    elseif command == 'test' then
     end
 
     if settings.auto_heal and tostring(settings.auto_heal):lower() ~= 'false' then
@@ -349,7 +351,7 @@ function move_goal_item(goal_items, current_items)
         processed_count = processed_count+1
         local full_bag
         -- Only attempt sort if item is not already in right bag and not already failed move
-        if not item:annihilated() or not item.hasFailed then
+        if not item:annihilated() and not item.hasFailed then
           local start_bag, start_ind = current_items:find(item)
           if start_bag then
             is_success, full_bag, start_bag, start_ind = current_items:route(start_bag,start_ind,bag_id)
@@ -564,6 +566,7 @@ function tidy(goal_items,current_items,usable_bags)
 end
 
 function organize(goal_items)
+
   org_message('Starting...')
   local current_items = Items.new()
   local dump_bags = get_dump_bags()
@@ -611,7 +614,8 @@ function organize(goal_items)
   org_message('Done! - '..processed_count..' items sorted and '..table.length(failures)..' items failed!')
   if table.length(failures) > 0 then
       for i,v in failures:it() do
-          org_message('Org Failed: '..i.name..' '..(i.augments and tostring(T(i.augments)) or ''))
+          org_message('Org Failed: '..i.name..(i.augments and ' '..tostring(T(i.augments)) or '')
+            ..(i.id and res.items[i.id].stack and res.items[i.id].stack > 1 and ' (x'..i.count..')' or ''))
       end
   end
 end
