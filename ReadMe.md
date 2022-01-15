@@ -60,5 +60,4 @@ There are a couple debug tools you can use to help you figure things out on your
 You can also turn on the verbose setting in the file `addons/reorganizer/data/settings.xml` by adding this to the "global" section: `<verbose>true</verbose>`
 
 ## Known Issues
-* Does not always work as expected when doing `//gs reorg` if there is equipment (or ammo) in your Inventory bag. Simply move those items elsewhere manually or automatically throw them into dump bags with `//reorg tidy`, then re-run `//gs reorg` again.
 * Will not work if gear you need for your job is in Inventory and already equipped.
