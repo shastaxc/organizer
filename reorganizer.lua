@@ -38,7 +38,7 @@ slips = require 'slips'
 
 _addon.name = 'Reorganizer'
 _addon.author = 'Shasta (legacy devs: Byrth, Rooks)'
-_addon.version = '2022JAN15'
+_addon.version = '2022JAN17'
 _addon.commands = {'reorganizer','reorg'}
 
 _static = {

@@ -164,19 +164,13 @@ function reorg.export_set()
       windower.add_to_chat(8, unavailable_msg)
       
       -- Update list of items to be processed by removing unavailable items
-      local temp = T{}
       for i,v in ipairs(flattab) do
-        local is_unavailable
         for n,m in ipairs(unavailable_items) do
           if m.id == v.id and (not v.augments or v.augments and m.augments and gearswap.extdata.compare_augments(v.augments,m.augments)) then
-            is_unavailable = true
+            flattab:delete(v)
           end
         end
-        if not is_unavailable then
-          temp:append(v)
-        end
       end
-      flattab = table.reassign({}, temp)
     end
     
     -- The functions up to this point attempted to determine how many multiples of an item might be needed, but
@@ -190,11 +184,12 @@ function reorg.export_set()
       -- If it is a stackable item, add it to new table and remove from current, to be re-added later.
       if item.max_stack > 1 then
         -- Adjust count to indicate that it's not an actual count
+        flattab:delete(item)
         item.count = -1
         stackable_items:append(item)
-        flattab:remove(i)
       end
     end
+    
     -- Determine how many stacks of stackable items exist in available bags. Add them all as separate instances to
     -- the list, along with their current counts. We'll aim to move them all into wardrobes.
     for _,stackable_item in ipairs(stackable_items) do
