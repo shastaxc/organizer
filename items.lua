@@ -29,50 +29,63 @@ local items = {}
 local bags = {}
 local item_tab = {}
 
-local nomad_moogle
-local clear_moogles
 do
-    local names = {'Nomad Moogle', 'Pilgrim Moogle'}
-    local moogles = {}
-    
-    clear_moogles = function()
-        moogles = {}
-    end
-    
-    nomad_moogle = function()
-        -- if #moogles == 0 then
-        --     for _,name in ipairs(names) do
-        --         local npcs = windower.ffxi.get_mob_list(name)
-        --         for index in pairs(npcs) do
-        --             table.insert(moogles,index)
-        --         end
-        --     end
-        -- end
-        -- get_mob_list is not working, try alternate method
-        if #moogles == 0 then
-          local npcs = windower.ffxi.get_mob_array()
-          for _,mob in pairs(npcs) do
-              for _,name in ipairs(names) do
-                  if name == mob.name then
-                      table.insert(moogles, mob.index)
-                  end
+  local names = {'Nomad Moogle','Pilgrim Moogle'}
+  local moogles = {}
+  local poked = false
+  local block_menu = false
+  
+  clear_moogles = function()
+      moogles = {}
+      poked = false
+  end
+  
+  local poke_moogle = function(npc)
+      local p = packets.new('outgoing', 0x1a, {
+          ["Target"] = npc.id,
+          ["Target Index"] = npc.index,
+          })
+      poked = true
+      block_menu = true
+      packets.inject(p)
+      repeat 
+          coroutine.sleep(0.4)
+      until not block_menu
+  end
+  
+  nomad_moogle = function()
+      if #moogles == 0 then
+          for _,name in ipairs(names) do
+              local npcs = windower.ffxi.get_mob_list(name)
+              for index in pairs(npcs) do
+                  table.insert(moogles,index)
               end
           end
-        end
-
-        local player = windower.ffxi.get_mob_by_target('me')
-        for _, moo_index in ipairs(moogles) do
-            local moo = windower.ffxi.get_mob_by_index(moo_index)
-            if moo and (moo.x - player.x)^2 + (moo.y - player.y)^2 < 36 then
-                return true
-            end
-        end
-        return false
-    end
+      end
+      
+      local player = windower.ffxi.get_mob_by_target('me')
+      for _, moo_index in ipairs(moogles) do
+          local moo = windower.ffxi.get_mob_by_index(moo_index)
+          if moo and (moo.x - player.x)^2 + (moo.y - player.y)^2 < 36 then
+              if not poked then
+                  poke_moogle(moo)
+              end
+              return moo.name
+          end
+      end
+      return false
+  end
+  
+  windower.register_event('incoming chunk',function(id)
+      if id == 0x02E and block_menu then
+          block_menu = false
+          return true
+      end
+  end)
 end
 
 windower.register_event('zone change',function() 
-    clear_moogles()
+  clear_moogles()
 end)
 
 local function validate_bag(bag_table)

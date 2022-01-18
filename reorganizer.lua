@@ -35,6 +35,7 @@ require 'lists'
 require 'functions'
 config = require 'config'
 slips = require 'slips'
+packets = require 'packets'
 
 _addon.name = 'Reorganizer'
 _addon.author = 'Shasta (legacy devs: Byrth, Rooks)'

@@ -25,19 +25,26 @@
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 res = include('resources')
+packets = include('packets')
 
 --Debug
-debug_gear_list = true -- Print the generated gear set
-debug_move_list = true -- Print the unassigned gear list
-debug_found_list = true -- Print the list of found equipment from scanning wardrobes
+local debug_gear_list = true -- Print the generated gear set
+local debug_move_list = true -- Print the unassigned gear list
+local debug_found_list = true -- Print the list of found equipment from scanning wardrobes
+
+local names = {'Nomad Moogle','Pilgrim Moogle'}
+local moogles = {}
 
 local reorg = {}
 register_unhandled_command(function(...)
     local cmds = {...}
     for _,v in ipairs(cmds) do
         if S{'reorganizer','reorganize','reorg'}:contains(v:lower()) then
+            moogles = {}
+          
             -- Check if we're ready to start
             if not reorg.ready_check() then
+                reorg.load_moogle_data()
                 -- Tell user the operation was aborted
                 local err_msg = string.char(31,123)..'Reorganizer Library: Aborting.'..
                   ' Equipment is in inventory bag.'..
@@ -67,6 +74,49 @@ function reorg.ready_check()
     end
   end
   return true
+end
+
+function reorg.clear_moogles()
+  moogles = {}
+end
+
+function reorg.nomad_moogle()
+  if #moogles == 0 then
+      for _,name in ipairs(names) do
+          local npcs = windower.ffxi.get_mob_list(name)
+          for index in pairs(npcs) do
+              table.insert(moogles,index)
+          end
+      end
+  end
+  
+  local player = windower.ffxi.get_mob_by_target('me')
+  for _, moo_index in ipairs(moogles) do
+      local moo = windower.ffxi.get_mob_by_index(moo_index)
+      if moo and (moo.x - player.x)^2 + (moo.y - player.y)^2 < 36 then
+          return moo.name
+      end
+  end
+  return false
+end
+
+windower.register_event('zone change',function() 
+    reorg.clear_moogles()
+end)
+
+local function is_bag_accessible(bag_table)
+  if type(bag_table) == 'table' and windower.ffxi.get_bag_info(bag_table.id) then 
+      if bag_table.access == 'Everywhere' then
+          return true
+      elseif bag_table.access == 'Mog House' then 
+          if windower.ffxi.get_info().mog_house then
+              return true
+          elseif reorg.nomad_moogle() and bag_table.english ~= 'Storage' then -- Storage is not available at Nomad Moogles
+              return true
+          end
+      end
+  end
+  return false
 end
 
 -- Make lists which will tell Reorganizer where gear should go.
@@ -127,7 +177,7 @@ function reorg.export_set()
     -- Get available bags only (Ex: not Mog Safe if not near moogle)
     for _,bag in pairs(res.bags) do
       all_bag_info[bag.id] = windower.ffxi.get_bag_info(bag.id)
-      if all_bag_info[bag.id].enabled then
+      if is_bag_accessible(bag) then
         available_items[bag.id] = windower.ffxi.get_items(bag.id)
       end
     end
