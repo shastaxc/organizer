@@ -44,7 +44,6 @@ register_unhandled_command(function(...)
           
             -- Check if we're ready to start
             if not reorg.ready_check() then
-                reorg.load_moogle_data()
                 -- Tell user the operation was aborted
                 local err_msg = string.char(31,123)..'Reorganizer Library: Aborting.'..
                   ' Equipment is in inventory bag.'..

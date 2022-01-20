@@ -59,5 +59,7 @@ There are a couple debug tools you can use to help you figure things out on your
 
 You can also turn on the verbose setting in the file `addons/reorganizer/data/settings.xml` by adding this to the "global" section: `<verbose>true</verbose>`
 
+It is not recommended to use Storage as a dump bag. If you have gear in there, it will not be able to be retrieved if you're at a nomad moogle. Storage is only accessible inside a Mog House.
+
 ## Known Issues
 * Will not work if gear you need for your job is in Inventory and already equipped.
