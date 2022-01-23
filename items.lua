@@ -482,13 +482,14 @@ function item_tab:move(dest_bag,dest_slot,count)
 end
 
 function item_tab:put_away(usable_bags)
-    org_debug("move", "Putting away "..res.items[self.id].english)
+    local item_name = res.items[self.id].english
+    org_debug("move", "Putting away "..item_name)
     local current_items = self._parent._parent
     usable_bags = usable_bags or _static.usable_bags
     local bag_free
     for _,v in pairs(usable_bags) do
         local bag_max = windower.ffxi.get_bag_info(v).max
-        if current_items[v]._info.n < bag_max and wardrobecheck(v,self.id) then
+        if current_items[v] and current_items[v]._info.n < bag_max and wardrobecheck(v,self.id) then
             bag_free = v
             break
         end
