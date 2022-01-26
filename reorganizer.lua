@@ -39,7 +39,7 @@ packets = require 'packets'
 
 _addon.name = 'Reorganizer'
 _addon.author = 'Shasta (legacy devs: Byrth, Rooks)'
-_addon.version = '2022JAN17-2'
+_addon.version = '2022JAN23'
 _addon.commands = {'reorganizer','reorg'}
 
 _static = {
@@ -268,8 +268,15 @@ windower.register_event('addon command',function(...)
         get(thaw(file_name, bag))
     elseif (command == 't' or command == 'tidy') then
         org_debug("command", "Calling tidy with file_name '"..file_name.."' and bag '"..bag.."'")
-        tidy(thaw(file_name, bag))
-        windower.add_to_chat(008, 'Reorganizer: Finished tidying!')
+        local _, current_items = tidy(thaw(file_name, bag))
+
+        -- Check to see if tidying is successful or if bags filled up
+        dump_bags = get_dump_bags()
+        if are_bags_full(current_items, dump_bags) then
+          windower.add_to_chat(123, 'Reorganizer: All dump bags are full or inaccessible!')
+        else
+          windower.add_to_chat(008, 'Reorganizer: Finished tidying!')
+        end
     elseif (command == 'f' or command == 'freeze') then
 
         org_debug("command", "Calling freeze command")
@@ -758,4 +765,20 @@ function get_dump_bags()
       end
   end
   return dump_bags
+end
+
+function are_bags_full(current_items, bags_to_check)
+  current_items = current_items or {}
+  bags_to_check = bags_to_check or {}
+  -- Check to see if tidying is successful or if bags filled up
+  for bag_id,bag_value in pairs(dump_bags) do
+    local bag_max = windower.ffxi.get_bag_info(bag_value).max
+    local is_bag_accessible = (current_items[bag_id] and true) or false
+    local is_bag_full = (is_bag_accessible and current_items[bag_id]._info.n == bag_max)
+    -- If at least one bag is accessible and not full, then exit the loop
+    if is_bag_accessible and not is_bag_full then
+      return false
+    end
+  end
+  return true
 end
