@@ -50,7 +50,7 @@ This is because when this addon was split from `organizer`, it was only ever int
 
 # Note from the developer regarding rework of Organizer
 
-After reworking this addon, the old and cumbersome `org freeze` and `org thaw` method no longer works. The purpose of the rework of this addon is to allow `//gs reorg` to work more efficiently and make day-to-day operation less cumbersome. 
+After reworking this addon, the old and cumbersome `freeze` and `thaw` method no longer works. The purpose of the rework of this addon is to allow `//gs reorg` to work more efficiently and make day-to-day operation less cumbersome. 
 
 # Troubleshooting
 If gear for your job ends up in a dump bag when you think it shouldn't, ensure that it is in a `sets` table in your gearswap lua, and make sure it is spelled and formatted properly.
@@ -63,3 +63,4 @@ It is not recommended to use Storage as a dump bag. If you have gear in there, i
 
 ## Known Issues
 * Will not work if gear you need for your job is in Inventory and already equipped.
+* "Retain" setting does not work.
