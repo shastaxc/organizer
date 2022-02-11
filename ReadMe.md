@@ -48,6 +48,28 @@ This is because when this addon was split from `organizer`, it was only ever int
   sets.org.job[2] = {back="Nexus Cape"}
 ```
 
+#Ignore Lists - Useful for specifying gear to never move from bags
+```
+        <ignore>
+            <wardrobe2>
+                <1>Moonlight Ring</1>
+            </wardrobe2>
+            <wardrobe3>
+                <1>Stikini Ring +1</1>
+                <2>Chirich Ring +1</2>
+                <3>Saida Ring</3>
+                <4>Ephedra Ring</4>
+            </wardrobe3>
+            <wardrobe4>
+                <1>Stikini Ring +1</1>
+                <2>Chirich Ring +1</2>
+                <3>Saida Ring</3>
+                <4>Ephedra Ring</4>
+                <5>Moonlight Ring</5>
+            </wardrobe4>
+        </ignore>
+```
+
 # Note from the developer regarding rework of Organizer
 
 After reworking this addon, the old and cumbersome `freeze` and `thaw` method no longer works. The purpose of the rework of this addon is to allow `//gs reorg` to work more efficiently and make day-to-day operation less cumbersome. 

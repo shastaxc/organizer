@@ -167,7 +167,7 @@ function options_load( )
             _ignore_list[bag_name] = {}
             for _,ignore_name in pairs(i_list) do
                 org_verbose("Adding "..ignore_name.." in the "..bag_name.." to the ignore list")
-                _ignore_list[bag_name][ignore_name] = 1
+                _ignore_list[bag_name][ignore_name:lower()] = 1
             end
         end
     end
@@ -358,6 +358,16 @@ function get(goal_items,current_items)
     return goal_items, current_items
 end
 
+--Get the ignore item list for a given bag
+function get_ignore_items(bag_id)
+  for bag_name,b_id in pairs(_static.bag_ids) do
+    if b_id == bag_id then
+      return _ignore_list[bag_name]
+    end
+  end
+  return nil
+end
+
 -- Attempt to move a goal item to its target bag. If target bag is full, attempt to move a
 -- non-goal item out to make room. Return success or failure.
 function move_goal_item(goal_items, current_items)
@@ -367,11 +377,20 @@ function move_goal_item(goal_items, current_items)
   if goal_items then
     current_items = current_items or Items.new()
     for bag_id,bag in pairs(goal_items) do
+      --Check ignore list items
+      local bag_ignore_list = get_ignore_items(bag_id)
       for ind,item in bag:it() do
         processed_count = processed_count+1
         local full_bag
-        -- Only attempt sort if item is not already in right bag and not already failed move
-        if not item:annihilated() and not item.hasFailed then
+        local is_on_ignore
+        if bag_ignore_list then --Valid ignore list for current bag
+          is_on_ignore = bag_ignore_list[res.items[item.id].enl]
+          if is_on_ignore then --Item is on ignore list
+            org_verbose("Item: "..res.items[item.id].enl.." is on ignore list for bag id: "..bag_id)
+          end
+        end
+        -- Only attempt sort if item is not already in right bag, not already failed move, or not in ignore list
+        if not item:annihilated() and not item.hasFailed and not is_on_ignore then
           local start_bag, start_ind = current_items:find(item)
           if start_bag then
             is_success, full_bag, start_bag, start_ind = current_items:route(start_bag,start_ind,bag_id)
