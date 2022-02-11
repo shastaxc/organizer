@@ -30,25 +30,9 @@ This section must contain `<items>true</items>`
 
 This is because when this addon was split from `organizer`, it was only ever intended to work with gear (AKA "items").
 
-# How To Use
-1. Make sure you don't have junk gear in your inventory, or it will be sorted away into a random bag by mistake.
-2. Change to a job you want to use.
-3. Run the `//gs reorg` command.
+### Ignore
 
-# Restrictions
-* You must have at least 2 free spaces in your inventory (specifically inventory, not the other bags).
-* You must have a gearswap file defined for the job which you want the gear pulled.
-* You may run into issues if you run `//gs reorg` without first allowing your items to fully load after zoning.
-* You will need access to all your defined dump bags when running the `//gs reorg` command or it will error out.
-* Only gear defined in the global `sets` table will be automatically pulled for your job. If you want gear that is not in a `sets` table (such as Warp Ring), you must create a dummy set and add those items. You can do this by creating sets like the following:
-```
-  sets.org = {}
-  sets.org.job = {}
-  sets.org.job[1] = {ring1="Warp Ring"}
-  sets.org.job[2] = {back="Nexus Cape"}
-```
-
-#Ignore Lists - Useful for specifying gear to never move from bags
+Useful for specifying gear to never move from bags
 ```
         <ignore>
             <wardrobe2>
@@ -69,6 +53,23 @@ This is because when this addon was split from `organizer`, it was only ever int
             </wardrobe4>
         </ignore>
 ```
+# How To Use
+1. Make sure you don't have junk gear in your inventory, or it will be sorted away into a random bag by mistake.
+2. Change to a job you want to use.
+3. Run the `//gs reorg` command.
+
+# Restrictions
+* You must have at least 2 free spaces in your inventory (specifically inventory, not the other bags).
+* You must have a gearswap file defined for the job which you want the gear pulled.
+* You may run into issues if you run `//gs reorg` without first allowing your items to fully load after zoning.
+* You will need access to all your defined dump bags when running the `//gs reorg` command or it will error out.
+* Only gear defined in the global `sets` table will be automatically pulled for your job. If you want gear that is not in a `sets` table (such as Warp Ring), you must create a dummy set and add those items. You can do this by creating sets like the following:
+```
+  sets.org = {}
+  sets.org.job = {}
+  sets.org.job[1] = {ring1="Warp Ring"}
+  sets.org.job[2] = {back="Nexus Cape"}
+```
 
 # Note from the developer regarding rework of Organizer
 
@@ -85,4 +86,3 @@ It is not recommended to use Storage as a dump bag. If you have gear in there, i
 
 ## Known Issues
 * Will not work if gear you need for your job is in Inventory and already equipped.
-* "Retain" setting does not work.
