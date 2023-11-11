@@ -39,7 +39,7 @@ packets = require 'packets'
 
 _addon.name = 'Reorganizer'
 _addon.author = 'Shasta (legacy devs: Byrth, Rooks)'
-_addon.version = '2022MAY28'
+_addon.version = '2023NOV11'
 _addon.commands = {'reorganizer','reorg'}
 
 _static = {
