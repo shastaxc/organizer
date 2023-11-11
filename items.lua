@@ -141,9 +141,9 @@ function items:new(key)
 end
 
 function items:find(item)
+    local item_name = res.items[item.id] and res.items[item.id].english or 'unknown'..self.id
     for bag_name,bag_id in pairs(settings.bag_priority) do
         real_bag_id = s_to_bag(bag_name)
-        local item_name = res.items[item.id] and res.items[item.id].english or 'unknown'..self.id
         org_debug("find", "Searching "..bag_name.." for "..item_name..".")
         if self[real_bag_id] and self[real_bag_id]:contains(item) then
             org_debug("find", "Found "..item_name.." in "..bag_name..".")
