@@ -1,4 +1,4 @@
---Copyright (c) 2021-2022, Shasta
+--Copyright (c) 2021-2023, Shasta
 --All rights reserved.
 
 --Redistribution and use in source and binary forms, with or without
@@ -123,7 +123,8 @@ function Items.new(loc_items,bool)
             local cur_inv = new_instance:new(bag_id)
             for inventory_index,item_table in pairs(loc_items[bag_id] or loc_items[bag_name]) do
                 if type(item_table) == 'table' and validate_id(item_table.id) then
-                    org_debug("items", "Items.new: inventory_index="..inventory_index.." item_table.id="..item_table.id.." ("..res.items[item_table.id].english..")")
+                    local item_name = res.items[item_table.id] and res.items[item_table.id].english or 'unknown'..item_table.id
+                    org_debug("items", "Items.new: inventory_index="..inventory_index.." item_table.id="..item_table.id.." ("..item_name..")")
                     cur_inv:new(item_table.id,item_table.count,item_table.extdata,item_table.augments,item_table.status,inventory_index)
                 end
             end
@@ -142,15 +143,16 @@ end
 function items:find(item)
     for bag_name,bag_id in pairs(settings.bag_priority) do
         real_bag_id = s_to_bag(bag_name)
-        org_debug("find", "Searching "..bag_name.." for "..res.items[item.id].english..".")
+        local item_name = res.items[item.id] and res.items[item.id].english or 'unknown'..self.id
+        org_debug("find", "Searching "..bag_name.." for "..item_name..".")
         if self[real_bag_id] and self[real_bag_id]:contains(item) then
-            org_debug("find", "Found "..res.items[item.id].english.." in "..bag_name..".")
+            org_debug("find", "Found "..item_name.." in "..bag_name..".")
             return real_bag_id, self[real_bag_id]:contains(item)
         else
-            org_debug("find", "Didn't find "..res.items[item.id].english.." in "..bag_name..".")
+            org_debug("find", "Didn't find "..item_name.." in "..bag_name..".")
         end
     end
-    org_debug("find", "Didn't find "..res.items[item.id].english.." in any bags.")
+    org_debug("find", "Didn't find "..item_name.." in any bags.")
     return false
 end
 
@@ -231,7 +233,6 @@ function items:it()
             end
         end
     end
-
 end
 
 function bags:new(id,count,ext,augments,status,index)
@@ -241,10 +242,21 @@ function bags:new(id,count,ext,augments,status,index)
     self._info.n = self._info.n + 1
     index = index or self:first_empty()
     status = status or 0
-    augments = augments or ext and id and extdata.decode({id=id,extdata=ext}).augments
+    augments = augments or ext and id and res.items[id] and extdata.decode({id=id,extdata=ext}).augments
     if augments then augments = table.filter(augments,-functions.equals('none')) end
-    self[index] = setmetatable({_parent=self,id=id,count=count,extdata=ext,index=index,status=status,
-        name=res.items[id][_global.language]:lower(),log_name=res.items[id][_global.language_log]:lower(),augments=augments},
+    local item_name = res.items[id] and res.items[id][_global.language]:lower() or 'unknown'..id
+    local log_name = res.items[id] and res.items[id][_global.language_log]:lower() or 'unknown'..id
+    self[index] = setmetatable({
+        _parent=self,
+        id=id,
+        count=count,
+        extdata=ext,
+        index=index,
+        status=status,
+        name=item_name,
+        log_name=log_name,
+        augments=augments
+        },
         {__index = function (t, k) 
             if not t or not k then print('table index is nil error',t,k) end
             if rawget(t,k) then
@@ -252,7 +264,8 @@ function bags:new(id,count,ext,augments,status,index)
             else
                 return rawget(item_tab,k)
             end
-        end})
+        end
+    })
     return index
 end
 
@@ -283,7 +296,9 @@ end
 function bags:find_all_instances(item,bool,first)
     local instances = L{}
     for i,v in self:it() do
-        org_debug("find_all", "find_all_instances: slot="..i.." v="..res.items[v.id].english.." item="..res.items[item.id].english.." ")
+        local vname = res.items[v.id] and res.items[v.id].english or 'unknown'..v.id
+        local iname = res.items[item.id] and res.items[item.id].english or 'unknown'..item.id
+        org_debug("find_all", "find_all_instances: slot="..i.." v="..vname.." item="..iname.." ")
         -- Apply bool filter: true = look at all items, false = only look at unannihilated items
         if (bool or not v:annihilated()) and v.id == item.id then
             -- Check for item matches based on: ID match, augment match
@@ -308,7 +323,8 @@ end
 
 function bags:contains(item,bool)
     bool = bool or false -- Default to only looking at unannihilated items
-    org_debug("contains", "contains: searching for "..res.items[item.id].english.." in "..self._info.bag_id)
+    local item_name = res.items[item.id] and res.items[item.id].english or 'unknown'..item.id
+    org_debug("contains", "contains: searching for "..item_name.." in "..self._info.bag_id)
     local instances = self:find_all_instances(item,bool,true)
     if instances then
         return instances:it()()
@@ -326,7 +342,7 @@ function bags:find_unfinished_stack(item,bool)
         -- Iterate through each instance found
         for _,i in ipairs(tab) do
             -- Filter out any full stacks
-            if res.items[self[i].id] and (res.items[self[i].id].stack > self[i].count) then
+            if res.items[self[i].id] and res.items[self[i].id].stack and (res.items[self[i].id].stack > self[i].count) then
                 instances:append({index=i, max_stack=res.items[self[i].id].stack, current_stack=self[i].count})
             end
         end
@@ -351,11 +367,12 @@ function item_tab:transfer(dest_bag,count)
         local incomplete_stacks = targ_inv:find_unfinished_stack(parent[self.index])
         local rv
         for _,stack in ipairs(incomplete_stacks) do
-            org_debug("stacks", "Stacking ("..res.items[self.id].english..') from '..res.bags[parent_bag_id].en..' to '..res.bags[target_bag_id].en..'')
+            local item_name = res.items[self.id] and res.items[self.id].english or 'unknown'..self.id
+            org_debug("stacks", "Stacking ("..item_name..') from '..res.bags[parent_bag_id].en..' to '..res.bags[target_bag_id].en..'')
             local move_count = math.min(stack.max_stack - stack.current_stack, count)
             rv = parent[self.index]:move(dest_bag,stack.index,move_count)
             if not rv then
-                org_debug("stacks", "FAILED stacking ("..res.items[self.id].english..') from '..res.bags[parent_bag_id].en..' to '..res.bags[target_bag_id].en..'')
+                org_debug("stacks", "FAILED stacking ("..item_name..') from '..res.bags[parent_bag_id].en..' to '..res.bags[target_bag_id].en..'')
                 break
             else
               -- Update to reflect remaining amount of items
@@ -382,54 +399,60 @@ function item_tab:move(dest_bag,dest_slot,count)
     local parent_bag_name = res.bags[parent_bag_id].en:lower()
 
     local target_bag_id = targ_inv._info.bag_id
+    local item_name = self.name or (res.items[self.id] and res.items[self.id].english) or 'unknown'..self.id
 
-    org_debug("move", "move(): Item: "..res.items[self.id].english)
+    org_debug("move", "move(): Item: "..item_name)
     org_debug("move", "move(): Parent bag: "..parent_bag_id)
     org_debug("move", "move(): Target bag: "..target_bag_id)
 
     -- issues with bazaared items makes me think we shouldn't screw with status'd items at all
     if(self.status > 0) then
         if(self.status == 5) then
-          org_verbose('Skipping item: ('..res.items[self.id].english..') because it is currently equipped.')
+            org_verbose('Skipping item: ('..item_name..') because it is currently equipped.')
             return false
         elseif(self.status == 19) then
-          org_verbose('Skipping item: ('..res.items[self.id].english..') because it is an equipped linkshell.')
+            org_verbose('Skipping item: ('..item_name..') because it is an equipped linkshell.')
             return false
         elseif(self.status == 25) then
-          org_verbose('Skipping item: ('..res.items[self.id].english..') because it is in your bazaar.')
+            org_verbose('Skipping item: ('..item_name..') because it is in your bazaar.')
             return false
         end
     end
 
     -- check the 'retain' lists
     if((parent_bag_id == 0) and _retain[self.id]) then
-      org_verbose('Skipping item: ('..res.items[self.id].english..') because it is set to be retained ('.._retain[self.id]..')')
+        org_verbose('Skipping item: ('..item_name..') because it is set to be retained ('.._retain[self.id]..')')
+        return false
+    end
+
+    if not res.items[self.id] then
+        org_verbose('Skipping item: ('..self.id..') because it is not found in resource files')
         return false
     end
 
     if((parent_bag_id == 0) and settings.retain and settings.retain.items) then
-        local cat = res.items[self.id].category
+        local cat = res.items[self.id] and res.items[self.id].category
         if(cat ~= 'Weapon' and cat ~= 'Armor') then
-          org_verbose('Skipping item: ('..res.items[self.id].english..') because non-equipment is set be retained')
+            org_verbose('Skipping item: ('..item_name..') because non-equipment is set be retained')
             return false
         end
     end
 
     -- respect the ignore list
-    if(_ignore_list[parent_bag_name] and _ignore_list[parent_bag_name][res.items[self.id].english]) then
-      org_verbose('Skipping item: ('..res.items[self.id].english..') because it is on the ignore list')
+    if(_ignore_list[parent_bag_name] and _ignore_list[parent_bag_name][item_name]) then
+        org_verbose('Skipping item: ('..item_name..') because it is on the ignore list')
         return false
     end
 
     -- Make sure the source can be pulled from
     if not _valid_pull[parent_bag_id] then
-      org_verbose('Skipping item: ('..res.items[self.id].english..') - can not be pulled from '..res.bags[parent_bag_id].en..') ')
+        org_verbose('Skipping item: ('..item_name..') - can not be pulled from '..res.bags[parent_bag_id].en..') ')
         return false
     end
 
     -- Make sure the target can be pushed to
     if not _valid_dump[target_bag_id] then
-      org_verbose('Skipping item: ('..res.items[self.id].english..') - can not be pushed to '..res.bags[target_bag_id].en..') ')
+        org_verbose('Skipping item: ('..item_name..') - can not be pushed to '..res.bags[target_bag_id].en..') ')
         return false
     end
 
@@ -447,7 +470,7 @@ function item_tab:move(dest_bag,dest_slot,count)
           local original_src_count = self.count
           -- Inject packet to move item
           windower.packets.inject_outgoing(0x29,string.char(0x29,6,0,0)..'I':pack(count)..string.char(parent._info.bag_id,dest_bag,self.index,dest_slot))
-          org_verbose('Moving item! ('..res.items[self.id].english..') from '..res.bags[parent._info.bag_id].en..' '..parent._info.n..' to '..res.bags[dest_bag].en..' '..targ_inv._info.n..')')
+          org_verbose('Moving item! ('..item_name..') from '..res.bags[parent._info.bag_id].en..' '..parent._info.n..' to '..res.bags[dest_bag].en..' '..targ_inv._info.n..')')
           -- Update target data to reflect change in item count
           targ_inv[dest_slot].count = original_dest_count + count
           -- If source data still has more than 0 count, update count, otherwise remove it
@@ -460,29 +483,29 @@ function item_tab:move(dest_bag,dest_slot,count)
         elseif is_target_empty then
           -- Move to empty slot in dest bag
           windower.packets.inject_outgoing(0x29,string.char(0x29,6,0,0)..'I':pack(count)..string.char(parent._info.bag_id,dest_bag,self.index,dest_slot))
-          org_verbose('Stacking item! ('..res.items[self.id].english..') from '..res.bags[parent._info.bag_id].en..' '..parent._info.n..' to '..res.bags[dest_bag].en..' '..targ_inv._info.n..')')
+          org_verbose('Stacking item! ('..item_name..') from '..res.bags[parent._info.bag_id].en..' '..parent._info.n..' to '..res.bags[dest_bag].en..' '..targ_inv._info.n..')')
           local new_index = targ_inv:new(self.id, count, self.extdata, self.augments)
           parent:remove(self.index)
           return new_index
         end
     elseif not dest_slot then
-      org_warning('Cannot move the item ('..res.items[self.id].english..'). Target inventory is full ('..res.bags[dest_bag].en..')')
-    elseif targ_inv[dest_slot] and res.items[targ_inv[dest_slot].id].stack < targ_inv[dest_slot].count + count then
-      org_warning('Cannot move the item ('..res.items[self.id].english..'). Target inventory slot would be overly full ('..(targ_inv[dest_slot].count + count)..' items in '..res.bags[dest_bag].en..')')
+      org_warning('Cannot move the item ('..item_name..'). Target inventory is full ('..res.bags[dest_bag].en..')')
+    elseif targ_inv[dest_slot] and res.items[targ_inv[dest_slot].id] and res.items[targ_inv[dest_slot].id].stack < targ_inv[dest_slot].count + count then
+      org_warning('Cannot move the item ('..item_name..'). Target inventory slot would be overly full ('..(targ_inv[dest_slot].count + count)..' items in '..res.bags[dest_bag].en..')')
     elseif (targ_inv._info.bag_id ~= 0 and parent._info.bag_id ~= 0) then
-      org_warning('Cannot move the item ('..res.items[self.id].english..'). Attempting to move from a non-inventory to a non-inventory bag ('..res.bags[parent._info.bag_id].en..' '..res.bags[dest_bag].en..')')
+      org_warning('Cannot move the item ('..item_name..'). Attempting to move from a non-inventory to a non-inventory bag ('..res.bags[parent._info.bag_id].en..' '..res.bags[dest_bag].en..')')
     elseif self:annihilated() then
-      org_warning('Cannot move the item ('..res.items[self.id].english..'). It has already been moved.')
+      org_warning('Cannot move the item ('..item_name..'). It has already been moved.')
     elseif not wardrobecheck(targ_inv._info.bag_id,self.id) then
-      org_warning('Cannot move the item ('..res.items[self.id].english..') to the wardrobe. Wardrobe cannot hold an item of its type ('..tostring(res.items[self.id].type)..').')
+      org_warning('Cannot move the item ('..item_name..') to the wardrobe. Wardrobe cannot hold an item of its type ('..tostring(res.items[self.id] and res.items[self.id].type or '???')..').')
     elseif not self:free() then
-      org_warning('Cannot free the item ('..res.items[self.id].english..'). It has an unaddressable item status ('..tostring(self.status)..').')
+      org_warning('Cannot free the item ('..item_name..'). It has an unaddressable item status ('..tostring(self.status)..').')
     end
     return false
 end
 
 function item_tab:put_away(usable_bags)
-    local item_name = res.items[self.id].english
+    local item_name = self.name or (res.items[self.id] and res.items[self.id].english) or 'unknown'..self.id
     org_debug("move", "Putting away "..item_name)
     local current_items = self._parent._parent
     usable_bags = usable_bags or _static.usable_bags

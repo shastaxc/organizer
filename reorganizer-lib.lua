@@ -1,4 +1,4 @@
---Copyright (c) 2021-2022, Shasta
+--Copyright (c) 2021-2023, Shasta
 -- All rights reserved.
 
 -- Redistribution and use in source and binary forms, with or without
@@ -68,7 +68,7 @@ function reorg.ready_check()
     if item and item.id ~= 0 then
       local info = res.items[item.id]
       -- If weapon or armor type, abort operation (includes ammo)
-      if info.type == 4 or info.type == 5 then
+      if info and (info.type == 4 or info.type == 5) then
         return false
       end
     end
@@ -462,8 +462,13 @@ function reorg.identify_items(tab)
         if type(bag) == 'table' then
             for ind,item in ipairs(bag) do
                 if type(item) == 'table' and item.id and item.id ~= 0 then
-                    name_to_id_map[gearswap.res.items[item.id][gearswap.language]:lower()] = item.id
-                    name_to_id_map[gearswap.res.items[item.id][gearswap.language..'_log']:lower()] = item.id
+                    local resource_item_data = gearswap.res.items[item.id]
+                    if resource_item_data then
+                      name_to_id_map[resource_item_data[gearswap.language]:lower()] = item.id
+                      name_to_id_map[resource_item_data[gearswap.language..'_log']:lower()] = item.id
+                    else
+                      name_to_id_map['unknown'..item.id] = item.id
+                    end
                 end
             end
         end
@@ -475,10 +480,11 @@ function reorg.identify_items(tab)
             local n = gearswap.res.items[item.id][gearswap.language]:lower()
             local ln = gearswap.res.items[item.id][gearswap.language..'_log']:lower()
             if not trans[n] then
-                trans[n] = T{id=item.id,
+                trans[n] = T{
+                    id=item.id,
                     name=n,
                     log_name=ln,
-                    }
+                }
             end
             trans[n]:extend(v)
         end

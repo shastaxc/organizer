@@ -1,4 +1,4 @@
---Copyright (c) 2021-2022, Shasta
+--Copyright (c) 2021-2023, Shasta
 --All rights reserved.
 
 --Redistribution and use in source and binary forms, with or without
@@ -193,7 +193,8 @@ function options_load( )
                 for item_id in slip_list:it() do
                     if item_id ~= 0 then
                         _retain[item_id] = "moogle slip"
-                        org_debug("settings", "Adding ("..res.items[item_id].english..') to slip retain list')
+                        local item_name = res.items[item_id] and res.items[item_id].english or 'unknown'..item_id
+                        org_debug("settings", "Adding ("..item_name..') to slip retain list')
                     end
                 end
             end
@@ -348,7 +349,8 @@ function get(goal_items,current_items)
                         simulate_item_delay()
                     else
                         -- Need to adapt this for stacking items somehow.
-                        org_warning(res.items[item.id].english..' not found.')
+                        local item_name = res.items[item.id] and res.items[item.id].english or 'unknown'..item.id
+                        org_warning(item_name..' not found.')
                     end
                 end
             end
@@ -383,10 +385,11 @@ function move_goal_item(goal_items, current_items)
         processed_count = processed_count+1
         local full_bag
         local is_on_ignore
+        local item_name = res.items[item.id] and res.items[item.id].english or 'unknown'..item.id
         if bag_ignore_list then --Valid ignore list for current bag
-          is_on_ignore = bag_ignore_list[res.items[item.id].enl]
+          is_on_ignore = bag_ignore_list[item_name]
           if is_on_ignore then --Item is on ignore list
-            org_verbose("Item: "..res.items[item.id].enl.." is on ignore list for bag id: "..bag_id)
+            org_verbose("Item: "..item_name.." is on ignore list for bag id: "..bag_id)
           end
         end
         -- Only attempt sort if item is not already in right bag, not already failed move, or not in ignore list
@@ -411,7 +414,7 @@ function move_goal_item(goal_items, current_items)
                 item:annihilate(item.count)
                 current_items[bag_id][potential_ind]:annihilate(current_items[bag_id][potential_ind].count)
               else
-                org_warning('Attempted move but failed for '..res.items[item.id].english)
+                org_warning('Attempted move but failed for '..item_name)
                 item.hasFailed = true
               end
               is_success = true
@@ -421,7 +424,7 @@ function move_goal_item(goal_items, current_items)
               is_success = false
             end
           else
-            org_warning(res.items[item.id].english..' not found.')
+            org_warning(item_name..' not found.')
             item.hasFailed = true
             is_success = false
           end
@@ -584,9 +587,10 @@ function tidy(goal_items,current_items,usable_bags)
       for j,g_item in bag:it() do
         local has_augs = item.augments ~= nil and g_item.augments ~= nil
         local augs_match = has_augs and g_item:compare_augments(item)
+        local item_name = res.items[item.id] and res.items[item.id].english or 'unknown'..item.id
         if item.id == g_item.id and (not has_augs or (has_augs and augs_match)) then
           -- Is a goal item
-          org_verbose('Not tidying goal item: '..res.items[item.id].english..'.')
+          org_verbose('Not tidying goal item: '..item_name..'.')
           is_goal_item = true
           break
         end
@@ -654,7 +658,7 @@ function organize(goal_items)
   if table.length(failures) > 0 then
       for i,v in failures:it() do
           org_message('Org Failed: '..i.name..(i.augments and ' '..tostring(T(i.augments)) or '')
-            ..(i.id and res.items[i.id].stack and res.items[i.id].stack > 1 and ' (x'..i.count..')' or ''))
+            ..(i.id and res.items[i.id] and res.items[i.id].stack and res.items[i.id].stack > 1 and ' (x'..i.count..')' or ''))
       end
   end
 end
