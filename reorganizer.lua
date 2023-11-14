@@ -213,13 +213,13 @@ function options_load( )
             org_verbose("Non-equipment items set to retain")
         end
 		
-        if(settings.retain.slips == true) then
-            org_verbose("Slips set to retain")
-            for _,slips_id in pairs(slips.storages) do
-                _retain[slips_id] = "slips"
-                org_debug("settings", "Adding ("..res.items[slips_id].english..') to slip retain list')
-            end
-        end
+        -- if(settings.retain.slips == true) then
+        --     org_verbose("Slips set to retain")
+        --     for _,slips_id in pairs(slips.storages) do
+        --         _retain[slips_id] = "slips"
+        --         org_debug("settings", "Adding ("..res.items[slips_id].english..') to slip retain list')
+        --     end
+        -- end
     end
 
     -- Always allow inventory and wardrobe, obviously
